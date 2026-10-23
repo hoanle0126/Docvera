@@ -1,0 +1,20 @@
+# Docvera Root .htaccess Fallback
+# Recommended production setup: point your web server DocumentRoot to /public.
+# If your shared or managed host forces the project root as DocumentRoot, this file
+# blocks direct HTTP access to sensitive directories and forwards traffic to /public.
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block direct HTTP access to sensitive internal directories and dot-files
+    RewriteRule ^(config|src|storage|database|bin|tests|docs|vendor)(/|$) - [F,L]
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+    RewriteRule \.(env|sql|lock|md|json|sh)$ - [F,L]
+
+    # Forward all public traffic into /public
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
+

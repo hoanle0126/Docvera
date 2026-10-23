@@ -1,0 +1,211 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Docvera — Commercial Release Packaging Script
+ *
+ * Builds `dist/docvera-v2.0.0-codester.zip` and verifies zero developer secrets,
+ * local databases, runtime logs, or VCS directories are included.
+ */
+
+$baseDir = dirname(__DIR__);
+$distDir = $baseDir . '/dist';
+$zipPath = $distDir . '/docvera-v2.0.0-codester.zip';
+
+if (!is_dir($distDir)) {
+    mkdir($distDir, 0755, true);
+}
+
+// 1. Clean debug log and optionally reset local state if --reset-local is passed
+@unlink($baseDir . '/firebase-debug.log');
+
+$resetLocal = in_array('--reset-local', $argv ?? [], true);
+if ($resetLocal) {
+    $cleanupTargets = [
+        $baseDir . '/.env',
+        $baseDir . '/storage/app/installed.lock',
+        $baseDir . '/storage/app/database/.installed.lock',
+        $baseDir . '/storage/app/database/.app_secret',
+        $baseDir . '/storage/app/database/docvera_store.json',
+        $baseDir . '/storage/app/database/docvera_store.json.lock',
+        $baseDir . '/storage/app/database/docvera.sqlite',
+    ];
+
+    foreach ($cleanupTargets as $file) {
+        if (is_file($file)) {
+            @unlink($file);
+        }
+    }
+
+    foreach (glob($baseDir . '/storage/logs/*.log') ?: [] as $logFile) {
+        @unlink($logFile);
+    }
+}
+
+$cleanDirs = [
+    $baseDir . '/storage/app/jobs',
+    $baseDir . '/storage/app/staged',
+];
+
+foreach ($cleanDirs as $dir) {
+    if (!is_dir($dir)) {
+        continue;
+    }
+    $items = scandir($dir) ?: [];
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..' || $item === '.gitkeep') {
+            continue;
+        }
+        $p = $dir . '/' . $item;
+        if (is_dir($p)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($p, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($it as $child) {
+                $child->isDir() ? @rmdir($child->getPathname()) : @unlink($child->getPathname());
+            }
+            @rmdir($p);
+        } else {
+            @unlink($p);
+        }
+    }
+}
+
+// Ensure .gitkeep files exist in required storage directories
+$storageSubdirs = [
+    'storage/app/jobs',
+    'storage/app/staged',
+    'storage/app/database',
+    'storage/logs',
+];
+foreach ($storageSubdirs as $sub) {
+    $full = $baseDir . '/' . $sub;
+    if (!is_dir($full)) {
+        mkdir($full, 0755, true);
+    }
+    $gitkeep = $full . '/.gitkeep';
+    if (!is_file($gitkeep)) {
+        file_put_contents($gitkeep, '');
+    }
+}
+
+if (is_file($zipPath)) {
+    unlink($zipPath);
+}
+
+$zip = new ZipArchive();
+if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+    fwrite(STDERR, "Failed to create release archive at {$zipPath}\n");
+    exit(1);
+}
+
+$includedRootFiles = [
+    '.env.example',
+    '.htaccess',
+    'CHANGELOG.md',
+    'README.md',
+    'THIRD_PARTY_LICENSES.md',
+    'composer.json',
+];
+
+foreach ($includedRootFiles as $relFile) {
+    $absFile = $baseDir . '/' . $relFile;
+    if (!is_file($absFile)) {
+        fwrite(STDERR, "Missing required root release file: {$relFile}\n");
+        exit(1);
+    }
+    $zip->addFile($absFile, 'docvera/' . $relFile);
+}
+
+$includedDirectories = [
+    'bin',
+    'config',
+    'database',
+    'docs',
+    'public',
+    'src',
+    'storage',
+    'tests',
+    'vendor',
+    'views',
+];
+
+$excludedPaths = [
+    'bin/package-release',
+];
+
+foreach ($includedDirectories as $relDir) {
+    $absDir = $baseDir . '/' . $relDir;
+    if (!is_dir($absDir)) {
+        continue;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($absDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $absItem = $item->getPathname();
+        $relItem = substr($absItem, strlen($baseDir) + 1);
+
+        if (in_array($relItem, $excludedPaths, true)) {
+            continue;
+        }
+
+        // Skip any runtime files under storage/ except .gitkeep
+        if (str_starts_with($relItem, 'storage/') && $item->isFile() && $item->getFilename() !== '.gitkeep') {
+            continue;
+        }
+
+        if ($item->isDir()) {
+            $zip->addEmptyDir('docvera/' . $relItem);
+        } else {
+            $zip->addFile($absItem, 'docvera/' . $relItem);
+        }
+    }
+}
+
+$zip->close();
+
+// Verify archive contents for forbidden patterns
+$verifyZip = new ZipArchive();
+$verifyZip->open($zipPath);
+$forbiddenPatterns = [
+    '#^docvera/\.git/#',
+    '#^docvera/\.env$#',
+    '#^docvera/AGENTS\.md$#',
+    '#^docvera/firebase-debug\.log$#',
+    '#\.installed\.lock$#',
+    '#installed\.lock$#',
+    '#\.app_secret$#',
+    '#docvera_store\.json#',
+    '#\.sqlite$#',
+    '#\.log$#',
+];
+
+$entryCount = $verifyZip->numFiles;
+for ($i = 0; $i < $entryCount; $i++) {
+    $name = (string) $verifyZip->getNameIndex($i);
+    foreach ($forbiddenPatterns as $pattern) {
+        if (preg_match($pattern, $name)) {
+            $verifyZip->close();
+            fwrite(STDERR, "SECURITY BLOCK: Forbidden file packaged in ZIP: {$name}\n");
+            exit(1);
+        }
+    }
+}
+$verifyZip->close();
+
+$sizeKb = round(filesize($zipPath) / 1024, 2);
+echo "========================================================================\n";
+echo " DOCVERA v2.0.0 — RELEASE PACKAGE BUILT & VERIFIED\n";
+echo "========================================================================\n";
+echo " Archive Path : {$zipPath}\n";
+echo " Archive Size : {$sizeKb} KB\n";
+echo " Total Entries: {$entryCount}\n";
+echo " Cleanliness  : PASS (0 secrets, 0 logs, 0 DB dumps, 0 .git files)\n";
+exit(0);

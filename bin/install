@@ -1,0 +1,98 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use Docvera\Core\Application;
+use Docvera\Http\InstallController;
+
+$app = new Application();
+$installer = new InstallController($app);
+
+$options = getopt('', [
+    'check-only',
+    'site-name::',
+    'app-url::',
+    'mode::',
+    'db-driver::',
+    'admin-name::',
+    'admin-email::',
+    'admin-password::',
+    'retention::',
+    'max-mb::',
+]);
+
+$report = $installer->buildPreflightReport();
+
+echo "========================================================================\n";
+echo " DOCVERA v" . $app->config->get('version', '2.0.0') . " — PRE-FLIGHT & CLI INSTALLER\n";
+echo "========================================================================\n\n";
+
+echo "1. REQUIRED SERVER PREREQUISITES:\n";
+foreach ($report['required_checks'] as $chk) {
+    $badge = $chk['passed'] ? '[PASS]' : '[FAIL]';
+    printf("   %-8s %-42s %s\n", $badge, $chk['name'], $chk['current']);
+    if (!$chk['passed']) {
+        printf("            Remediation: %s\n", $chk['remediation']);
+    }
+}
+
+echo "\n2. OPTIONAL PROCESSING CAPABILITIES (Gracefully Degraded if Missing):\n";
+foreach ($report['optional_capabilities'] as $opt) {
+    $badge = $opt['available'] ? '[READY]' : '[OPT ]';
+    printf("   %-8s %-42s %s\n", $badge, $opt['name'], $opt['version']);
+}
+
+echo "\n";
+
+if (isset($options['check-only'])) {
+    exit($report['all_required_passed'] ? 0 : 1);
+}
+
+if ($app->isInstalled()) {
+    fwrite(STDERR, "Notice: Docvera is already installed and locked (" . $app->getInstalledLockPath() . ").\n");
+    fwrite(STDERR, "Remove storage/app/installed.lock only if you intend to re-run installation.\n");
+    exit(1);
+}
+
+if (!$report['all_required_passed']) {
+    fwrite(STDERR, "Error: One or more REQUIRED server prerequisites failed. Fix them before installing.\n");
+    exit(1);
+}
+
+$adminEmail = (string) ($options['admin-email'] ?? getenv('DOCVERA_ADMIN_EMAIL') ?: 'admin@example.com');
+$adminPass = (string) ($options['admin-password'] ?? getenv('DOCVERA_ADMIN_PASSWORD') ?: '');
+if ($adminPass === '') {
+    $adminPass = bin2hex(random_bytes(8));
+    $generatedPass = true;
+} else {
+    $generatedPass = false;
+}
+
+try {
+    $result = $installer->executeInstall([
+        'site_name' => (string) ($options['site-name'] ?? 'Docvera'),
+        'app_url' => (string) ($options['app-url'] ?? 'http://localhost:8080'),
+        'deployment_mode' => (string) ($options['mode'] ?? 'saas'),
+        'db_driver' => (string) ($options['db-driver'] ?? 'file'),
+        'admin_name' => (string) ($options['admin-name'] ?? 'System Administrator'),
+        'admin_email' => $adminEmail,
+        'admin_password' => $adminPass,
+        'default_retention_minutes' => (int) ($options['retention'] ?? 60),
+        'max_file_size_mb' => (int) ($options['max-mb'] ?? 50),
+    ]);
+
+    echo "Installation completed and locked.\n";
+    echo " - Configuration file : " . $result['env_path'] . "\n";
+    echo " - Lock file          : " . $result['lock_path'] . "\n";
+    echo " - Admin Email        : " . $adminEmail . "\n";
+    if ($generatedPass) {
+        echo " - Generated Password : " . $adminPass . " (Change immediately after sign-in)\n";
+    }
+    exit(0);
+} catch (Throwable $e) {
+    fwrite(STDERR, "Installation failed: " . $e->getMessage() . "\n");
+    exit(1);
+}

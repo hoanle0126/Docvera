@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docvera v2.0.0 — Official Customer &amp; Operator Documentation</title>
+  <style>
+    :root {
+      --bg-canvas: #F7F5F0;
+      --bg-surface: #EFECE6;
+      --bg-elevated: #FFFFFF;
+      --ink-primary: #141413;
+      --ink-secondary: #52514E;
+      --ink-muted: #85837E;
+      --accent-vermilion: #D9381E;
+      --accent-cobalt: #1D4ED8;
+      --semantic-emerald: #15803D;
+      --semantic-amber: #B45309;
+      --border-hairline: #E2DFD7;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background-color: var(--bg-canvas);
+      color: var(--ink-primary);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-hairline);
+      padding: 28px 22px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 18px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      background: var(--ink-primary);
+      color: var(--bg-canvas);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      border-left: 4px solid var(--accent-vermilion);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-version {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-hairline);
+      padding: 2px 6px;
+      color: var(--ink-secondary);
+    }
+
+    .toc-heading {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+      margin: 0 0 10px 0;
+    }
+
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .toc-list li {
+      margin-bottom: 4px;
+    }
+
+    .toc-list a {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 5px 8px;
+      color: var(--ink-secondary);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s ease;
+    }
+
+    .toc-list a:hover {
+      color: var(--ink-primary);
+      background: rgba(20, 20, 19, 0.04);
+      border-left-color: var(--accent-vermilion);
+    }
+
+    .toc-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-muted);
+      min-width: 22px;
+    }
+
+    .content {
+      padding: 48px 64px;
+      max-width: 1060px;
+    }
+
+    .doc-header {
+      border-bottom: 2px solid var(--ink-primary);
+      padding-bottom: 24px;
+      margin-bottom: 40px;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-vermilion);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    h1 {
+      font-size: 34px;
+      letter-spacing: -0.03em;
+      margin: 0 0 12px 0;
+      line-height: 1.15;
+    }
+
+    .lead {
+      font-size: 16.5px;
+      color: var(--ink-secondary);
+      margin: 0;
+      max-width: 72ch;
+    }
+
+    section {
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    h2 {
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h2 .sec-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--ink-primary);
+      color: var(--bg-canvas);
+      padding: 2px 7px;
+      font-weight: 600;
+    }
+
+    h3 {
+      font-size: 16px;
+      margin: 22px 0 10px 0;
+      letter-spacing: -0.01em;
+    }
+
+    p {
+      margin: 0 0 14px 0;
+      max-width: 75ch;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      padding: 1px 5px;
+    }
+
+    pre {
+      background: var(--ink-primary);
+      color: var(--bg-canvas);
+      padding: 16px 18px;
+      overflow-x: auto;
+      border-left: 3px solid var(--accent-vermilion);
+      margin: 14px 0 18px 0;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px 0;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-hairline);
+      font-size: 13.5px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-hairline);
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--bg-surface);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-secondary);
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      text-transform: uppercase;
+    }
+
+    .badge-req {
+      background: rgba(217, 56, 30, 0.12);
+      color: var(--accent-vermilion);
+      border: 1px solid rgba(217, 56, 30, 0.3);
+    }
+
+    .badge-opt {
+      background: rgba(29, 78, 216, 0.1);
+      color: var(--accent-cobalt);
+      border: 1px solid rgba(29, 78, 216, 0.25);
+    }
+
+    .callout {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-hairline);
+      border-left: 4px solid var(--accent-vermilion);
+      padding: 14px 18px;
+      margin: 16px 0;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--border-hairline);
+      }
+      .content {
+        padding: 28px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Documentation Navigation">
+      <div class="brand">
+        <span class="brand-mark">DV</span>
+        <span class="brand-title">Docvera Docs</span>
+        <span class="brand-version">v2.0.0</span>
+      </div>
+      <div class="toc-heading">Operator Manual</div>
+      <ol class="toc-list">
+        <li><a href="#s01"><span class="toc-num">01</span>Getting Started</a></li>
+        <li><a href="#s02"><span class="toc-num">02</span>Installation</a></li>
+        <li><a href="#s03"><span class="toc-num">03</span>Server Requirements</a></li>
+        <li><a href="#s04"><span class="toc-num">04</span>Optional Dependencies</a></li>
+        <li><a href="#s05"><span class="toc-num">05</span>Environment Config</a></li>
+        <li><a href="#s06"><span class="toc-num">06</span>Admin Setup</a></li>
+        <li><a href="#s07"><span class="toc-num">07</span>Business Modes</a></li>
+        <li><a href="#s08"><span class="toc-num">08</span>Users &amp; Auth</a></li>
+        <li><a href="#s09"><span class="toc-num">09</span>Plans &amp; Entitlements</a></li>
+        <li><a href="#s10"><span class="toc-num">10</span>Payments &amp; Webhooks</a></li>
+        <li><a href="#s11"><span class="toc-num">11</span>Tool Configuration</a></li>
+        <li><a href="#s12"><span class="toc-num">12</span>File Retention</a></li>
+        <li><a href="#s13"><span class="toc-num">13</span>Queue Worker</a></li>
+        <li><a href="#s14"><span class="toc-num">14</span>Scheduler / Cron</a></li>
+        <li><a href="#s15"><span class="toc-num">15</span>REST API (/api/v1)</a></li>
+        <li><a href="#s16"><span class="toc-num">16</span>API Keys &amp; Scopes</a></li>
+        <li><a href="#s17"><span class="toc-num">17</span>SEO &amp; Sitemap</a></li>
+        <li><a href="#s18"><span class="toc-num">18</span>Branding &amp; CMS</a></li>
+        <li><a href="#s19"><span class="toc-num">19</span>Backup &amp; Upgrade</a></li>
+        <li><a href="#s20"><span class="toc-num">20</span>Troubleshooting &amp; Security</a></li>
+        <li><a href="#s21"><span class="toc-num">21</span>FAQ &amp; Changelog</a></li>
+      </ol>
+    </aside>
+
+    <main class="content">
+      <header class="doc-header">
+        <div class="eyebrow">Swiss Archival &amp; Precision Document Workbench</div>
+        <h1>Docvera v2.0.0 — Complete Customer &amp; Operator Documentation</h1>
+        <p class="lead">
+          Self-hosted PHP 8.2+ PDF &amp; document processing platform, multi-mode SaaS billing engine, and versioned REST API (<code>/api/v1/*</code>). Zero third-party cloud document fees.
+        </p>
+      </header>
+
+      <section id="s01">
+        <h2><span class="sec-id">01</span> Getting Started</h2>
+        <p>
+          <strong>Docvera</strong> runs 22 document processing tools directly on your server inside isolated <code>0700</code> per-job directories. Every tool declares its required input MIME types, option schema, and fallback driver chain in <code>src/Tools/ToolRegistry.php</code>.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>public/</code></td><td>Web server document root (<code>index.php</code>, <code>.htaccess</code>, CSS/JS assets).</td></tr>
+            <tr><td><code>config/app.php</code></td><td>Central application, storage, security, and environment configuration.</td></tr>
+            <tr><td><code>src/</code></td><td>Core framework, 22-tool registry, capability detector, drivers, auth, billing, and API controllers.</td></tr>
+            <tr><td><code>views/</code></td><td>Server-rendered templates (<code>home.php</code>, <code>tool.php</code>, <code>dashboard.php</code>, <code>admin.php</code>, <code>install.php</code>).</td></tr>
+            <tr><td><code>bin/</code></td><td>CLI utilities: <code>bin/install</code>, <code>bin/migrate</code>, <code>bin/capabilities</code>, <code>bin/worker</code>, <code>bin/cleanup</code>, <code>bin/test</code>.</td></tr>
+            <tr><td><code>storage/</code></td><td>Writable runtime storage (<code>storage/app/jobs</code>, <code>storage/app/staged</code>, <code>storage/app/database</code>, <code>storage/logs</code>).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="s02">
+        <h2><span class="sec-id">02</span> Installation (Web Installer &amp; CLI Installer)</h2>
+        <h3>Option A — Guided Web Installer (Recommended)</h3>
+        <ol>
+          <li>Upload the unpacked Docvera files to your server and point your web server's document root to <code>/path/to/docvera/public</code>.</li>
+          <li>Visit <code>https://your-domain.example/install</code> in your browser.</li>
+          <li>Review the live preflight check separating <span class="badge badge-req">REQUIRED</span> core checks from <span class="badge badge-opt">OPTIONAL CAPABILITY</span> binaries.</li>
+          <li>Configure Site Name, Application URL, Deployment Business Mode (<code>saas</code>, <code>free_ads</code>, or <code>private</code>), Database Engine (<code>sqlite</code>, <code>mysql</code>, or <code>file</code>), and Initial Administrator Credentials.</li>
+          <li>Click <strong>Run Installation &amp; Lock Installer</strong>. Docvera writes <code>.env</code>, generates a 256-bit CSPRNG <code>APP_SECRET</code>, executes idempotent schema migrations, seeds the 4 default plans, creates your admin account, and writes <code>storage/app/database/.installed.lock</code>.</li>
+        </ol>
+        <div class="callout">
+          <strong>Installer Lockout Guarantee:</strong> Once <code>storage/app/database/.installed.lock</code> exists, any subsequent <code>GET</code> or <code>POST</code> request to <code>/install</code> returns <code>HTTP 403 Forbidden</code> so no external visitor can re-run setup.
+        </div>
+
+        <h3>Option B — Headless CLI Installer</h3>
+        <pre><code># Preflight readiness check only (exits 0 when all REQUIRED checks pass)
+php bin/install --check-only
+
+# Non-interactive installation
+php bin/install \
+  --app-name="Docvera Workbench" \
+  --app-url="https://docs.example.com" \
+  --business-mode="saas" \
+  --db-driver="sqlite" \
+  --admin-name="System Administrator" \
+  --admin-email="admin@example.com" \
+  --admin-password="ChangeMeImmediately!2026"</code></pre>
+      </section>
+
+      <section id="s03">
+        <h2><span class="sec-id">03</span> Server Requirements &amp; Hosting Compatibility</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Check</th>
+              <th>Classification</th>
+              <th>Requirement &amp; Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>PHP Version</td><td><span class="badge badge-req">REQUIRED</span></td><td>PHP <code>&gt;= 8.2.0</code> (PHP 8.2 or 8.3 recommended).</td></tr>
+            <tr><td>Core PHP Extensions</td><td><span class="badge badge-req">REQUIRED</span></td><td><code>fileinfo</code>, <code>zip</code>, <code>mbstring</code>, <code>openssl</code>, <code>json</code>.</td></tr>
+            <tr><td>Writable Storage Paths</td><td><span class="badge badge-req">REQUIRED</span></td><td><code>storage/app/jobs</code>, <code>storage/app/staged</code>, <code>storage/app/database</code>, <code>storage/logs</code>.</td></tr>
+            <tr><td><code>proc_open()</code></td><td><span class="badge badge-opt">OPTIONAL</span></td><td>Required to invoke external system binaries (<code>gs</code>, <code>qpdf</code>, <code>pdftoppm</code>, <code>libreoffice</code>, <code>tesseract</code>). Native PHP tools (<code>images-to-pdf</code>, <code>text-to-pdf</code>) work even without external binaries.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="s04">
+        <h2><span class="sec-id">04</span> Optional System Dependencies (22-Tool Matrix)</h2>
+        <p>Install all optional processing binaries on Ubuntu/Debian with a single command:</p>
+        <pre><code>sudo apt update
+sudo apt install -y \
+  ghostscript \
+  poppler-utils \
+  qpdf \
+  libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
+  tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra tesseract-ocr-deu tesseract-ocr-spa</code></pre>
+        <p>Verify detected versions and per-tool readiness at any time via CLI or <code>/admin/capabilities</code>:</p>
+        <pre><code>php bin/capabilities</code></pre>
+      </section>
+
+      <section id="s05">
+        <h2><span class="sec-id">05</span> Environment Configuration (<code>.env</code>)</h2>
+        <p>Copy <code>.env.example</code> to <code>.env</code> when configuring manually:</p>
+        <pre><code>APP_NAME="Docvera"
+APP_ENV="production"
+APP_URL="https://your-domain.example"
+APP_TIMEZONE="UTC"
+APP_SECRET="generate-via-installer-or-64-hex-chars"
+BUSINESS_MODE="saas"
+
+DB_CONNECTION="sqlite"
+DB_DATABASE="storage/app/database/docvera.sqlite"
+
+RETENTION_TTL_MINUTES=60
+MAX_UPLOAD_MB=50
+MAX_FILES_PER_JOB=20
+PROCESS_TIMEOUT_SECONDS=60</code></pre>
+      </section>
+
+      <section id="s06">
+        <h2><span class="sec-id">06</span> Admin Setup &amp; 16 Operational Sections</h2>
+        <p>Sign in with your administrator account and navigate to <code>/admin</code>. The Admin Console provides 16 dedicated sections:</p>
+        <ul>
+          <li><strong>Overview (<code>/admin</code>):</strong> Platform KPIs, storage footprint, active driver ratio, and security warning banner if default secret is active.</li>
+          <li><strong>Business Mode (<code>/admin/business-mode</code>):</strong> Switch live between <code>free_ads</code>, <code>saas</code>, and <code>private</code> modes and toggle open registration.</li>
+          <li><strong>Users (<code>/admin/users</code>):</strong> Create users, assign plans, change roles (<code>user</code> / <code>admin</code>), suspend accounts, or reset passwords.</li>
+          <li><strong>Plans &amp; Quotas (<code>/admin/plans</code>):</strong> Customize daily/monthly quotas, max file size, max pages, concurrent jobs, batch/OCR access, and retention windows.</li>
+          <li><strong>Subscriptions &amp; Payments (<code>/admin/subscriptions</code>, <code>/admin/payments</code>):</strong> Inspect subscription status and payment events.</li>
+          <li><strong>Tools &amp; Capabilities (<code>/admin/tools</code>, <code>/admin/capabilities</code>):</strong> Enable/disable individual tools, mark Pro tools, and inspect binary paths/versions.</li>
+          <li><strong>Jobs, Queue &amp; Storage (<code>/admin/jobs</code>, <code>/admin/queue</code>, <code>/admin/storage</code>):</strong> Inspect jobs, process queued jobs, and trigger expired file sweeps.</li>
+          <li><strong>API Logs, Branding, CMS, SEO, Security &amp; Updates:</strong> Full control over branding colors, CMS pages, SEO metadata, Stripe/PayPal keys, and update readiness.</li>
+        </ul>
+      </section>
+
+      <section id="s07">
+        <h2><span class="sec-id">07</span> Business Modes (<code>free_ads</code>, <code>saas</code>, <code>private</code>)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Mode</th>
+              <th>Behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>free_ads</code></td><td>Public utility portal with configurable header, sidebar, inline, and result ad slots. Billing UI hidden.</td></tr>
+            <tr><td><code>saas</code></td><td>Freemium + Paid subscriptions (<code>guest</code>, <code>free</code>, <code>pro</code>, <code>business</code>) with Stripe/PayPal checkout and API monetization.</td></tr>
+            <tr><td><code>private</code></td><td>Internal team workbench. Unauthenticated users are redirected to <code>/login</code>; self-registration can be locked.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="s08">
+        <h2><span class="sec-id">08</span> Users &amp; Authentication Security</h2>
+        <p>
+          Docvera uses <code>password_hash(..., PASSWORD_DEFAULT)</code>, automatic CSRF token rotation on login/logout, and brute-force rate limiting (maximum 10 failed login attempts per 15-minute window per IP or email before returning HTTP <code>429 Too Many Requests</code>).
+        </p>
+      </section>
+
+      <section id="s09">
+        <h2><span class="sec-id">09</span> Plans &amp; Entitlements</h2>
+        <p>
+          <code>src/Entitlements/EntitlementService.php</code> enforces a unified quota contract across both Web UI and REST API: <code>daily_jobs_limit</code>, <code>monthly_jobs_limit</code>, <code>monthly_api_calls_limit</code>, <code>max_file_size_mb</code>, <code>max_files_per_job</code>, <code>max_pages_per_file</code>, <code>concurrent_jobs_limit</code>, <code>allow_ocr</code>, <code>allow_batch</code>, and <code>retention_minutes</code>.
+        </p>
+      </section>
+
+      <section id="s10">
+        <h2><span class="sec-id">10</span> Payments &amp; Webhook Security</h2>
+        <p>
+          Configure Stripe and PayPal credentials in <code>/admin/security</code> or <code>.env</code>. Webhook endpoints (<code>POST /webhooks/stripe</code> and <code>POST /webhooks/paypal</code>) verify cryptographic HMAC signatures and log every event idempotently by <code>external_event_id</code>.
+        </p>
+      </section>
+
+      <section id="s11">
+        <h2><span class="sec-id">11</span> Tool Configuration</h2>
+        <p>
+          In <code>/admin/tools</code>, administrators can enable or disable any of the 22 tools, set custom display titles or SEO descriptions, or mark specific tools as Pro-only. If a required system binary is missing, the tool automatically displays an honest <strong>Unavailable on this server</strong> badge.
+        </p>
+      </section>
+
+      <section id="s12">
+        <h2><span class="sec-id">12</span> File Retention &amp; Ephemeral Privacy</h2>
+        <p>
+          Uploaded input files are purged immediately after job execution. Output artifacts are stored inside <code>0700</code> job directories, downloadable only via a session/owner-verified HMAC token, and can be deleted immediately via <strong>Delete File Now</strong> or swept automatically by <code>php bin/cleanup</code>.
+        </p>
+      </section>
+
+      <section id="s13">
+        <h2><span class="sec-id">13</span> Async Queue Worker (<code>bin/worker</code>)</h2>
+        <p>
+          Jobs submitted with <code>async=1</code> (via Web or REST API) enter the <code>queued</code> state while retaining their concurrency slot until background processing finishes:
+        </p>
+        <pre><code>php bin/worker --limit=25</code></pre>
+      </section>
+
+      <section id="s14">
+        <h2><span class="sec-id">14</span> Scheduler / Cron Setup</h2>
+        <pre><code># Sweep expired job directories every 15 minutes
+*/15 * * * * /usr/bin/php /var/www/docvera/bin/cleanup >> /dev/null 2>&amp;1
+
+# Process queued async jobs every minute
+* * * * * /usr/bin/php /var/www/docvera/bin/worker --limit=25 >> /dev/null 2>&amp;1</code></pre>
+      </section>
+
+      <section id="s15">
+        <h2><span class="sec-id">15</span> REST API (<code>/api/v1/*</code>)</h2>
+        <p>Interactive documentation is built into your installation at <code>/developers/api</code> and <code>/api/v1/openapi.json</code>.</p>
+        <pre><code>curl -X POST "https://your-domain.example/api/v1/tools/merge-pdf/jobs" \
+  -H "Authorization: Bearer dcv_live_YOUR_API_KEY" \
+  -H "Idempotency-Key: merge-req-001" \
+  -F "files[]=@/path/to/part1.pdf" \
+  -F "files[]=@/path/to/part2.pdf"</code></pre>
+      </section>
+
+      <section id="s16">
+        <h2><span class="sec-id">16</span> API Keys &amp; Scopes</h2>
+        <p>
+          Users generate API keys in <code>/dashboard/api-keys</code>. Only the SHA-256 hash and 14-character prefix are persisted in the database. Supported scopes: <code>tools:execute</code>, <code>jobs:read</code>, <code>jobs:download</code>, and <code>jobs:delete</code>.
+        </p>
+      </section>
+
+      <section id="s17">
+        <h2><span class="sec-id">17</span> SEO, OpenGraph &amp; Sitemap</h2>
+        <p>
+          Configure global title templates, meta descriptions, canonical base URL, and robots policy in <code>/admin/seo</code>. Dynamic XML sitemaps and robots directives are served at <code>/sitemap.xml</code> and <code>/robots.txt</code>.
+        </p>
+      </section>
+
+      <section id="s18">
+        <h2><span class="sec-id">18</span> Branding &amp; CMS Pages</h2>
+        <p>
+          Customize your platform name, tagline, logo URL, primary color, and accent color in <code>/admin/branding</code>, and manage legal/informational pages (<code>/privacy</code>, <code>/terms</code>, <code>/security</code>, <code>/about</code>, <code>/contact</code>, <code>/faq</code>) in <code>/admin/cms</code>.
+        </p>
+      </section>
+
+      <section id="s19">
+        <h2><span class="sec-id">19</span> Backup, Upgrade &amp; Rollback</h2>
+        <pre><code># 1. Backup .env and database before upgrading
+cp .env .env.backup-$(date +%Y%m%d)
+cp -r storage/app/database storage/app/database.backup-$(date +%Y%m%d)
+
+# 2. After replacing application files (preserving .env and storage/), run migrations:
+php bin/migrate
+php bin/capabilities
+php bin/test</code></pre>
+      </section>
+
+      <section id="s20">
+        <h2><span class="sec-id">20</span> Troubleshooting &amp; Security Recommendations</h2>
+        <ul>
+          <li><strong>Web Root Isolation:</strong> Always point Nginx/Apache to <code>public/</code> so <code>.env</code>, <code>src/</code>, and <code>storage/</code> are outside the public web root.</li>
+          <li><strong>Zero-Shell Execution:</strong> All external CLI binaries run through <code>SafeProcessRunner</code> with <code>proc_open(..., ['bypass_shell' => true])</code> and strict timeouts.</li>
+          <li><strong>Automated Self-Test:</strong> Run <code>php bin/test</code> (35 integration and security checks) after installation or server updates.</li>
+        </ul>
+      </section>
+
+      <section id="s21">
+        <h2><span class="sec-id">21</span> FAQ &amp; Changelog Summary</h2>
+        <p>
+          <strong>v2.0.0 Commercial Marketplace Release:</strong> Adds Guided Web Installer (<code>/install</code>) + CLI Installer (<code>bin/install</code>) with <code>.installed.lock</code> protection, multi-mode SaaS/Ads/Private business engine, 16-section Admin Console, Stripe &amp; PayPal webhook billing, versioned REST API (<code>/api/v1/*</code>), auth brute-force protection, async concurrency slot persistence, and 35-test automated verification suite. See <code>CHANGELOG.md</code> and <code>docs/DOCUMENTATION.md</code> for full details.
+        </p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+

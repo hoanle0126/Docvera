@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use Docvera\Core\Application;
+
+$app = new Application();
+$result = $app->cleanup->purgeExpired();
+
+echo sprintf(
+    "[%s] Docvera TTL Cleanup completed — expired jobs: %d, orphaned job dirs: %d, staged dirs: %d\n",
+    gmdate('Y-m-d\TH:i:s\Z'),
+    $result['expired_jobs_purged'],
+    $result['orphaned_dirs_purged'],
+    $result['staged_dirs_purged']
+);
+exit(0);
+

@@ -1,0 +1,59 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use Docvera\Core\Application;
+
+$app = new Application();
+$jsonMode = in_array('--json', $argv, true);
+
+if ($jsonMode) {
+    $report = $app->capabilities->toMachineReadableReport();
+    $tools = [];
+    foreach ($app->registry->all() as $id => $tool) {
+        $tools[$id] = [
+            'name' => $tool->name,
+            'group' => $tool->priorityGroup,
+            'available' => $tool->availability->available,
+            'driver' => $tool->availability->activeDriver,
+            'reason' => $tool->availability->unavailableReason,
+        ];
+    }
+    $report['tools'] = $tools;
+    echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    exit(0);
+}
+
+echo "Docvera Environment Capability & Tool Readiness Report\n";
+echo str_repeat('=', 74) . "\n";
+foreach ($app->capabilities->detectAll() as $cap) {
+    $badge = $cap->available ? '[AVAILABLE]' : ($cap->required ? '[MISSING! ]' : '[OPTIONAL ]');
+    $ver = $cap->version !== null ? ' (' . $cap->version . ')' : '';
+    echo sprintf(" %-12s %-34s%s\n", $badge, $cap->label, $ver);
+    if (!$cap->available && $cap->missingReason !== null) {
+        echo sprintf("              -> %s\n", $cap->missingReason);
+    }
+}
+
+echo "\nPhase 1 Tool Matrix (22 Tools):\n";
+echo str_repeat('-', 74) . "\n";
+$availCount = 0;
+foreach ($app->registry->all() as $tool) {
+    $status = $tool->availability->available
+        ? sprintf('READY (%s)', $tool->availability->activeDriver)
+        : 'UNAVAILABLE';
+    if ($tool->availability->available) {
+        $availCount++;
+    }
+    echo sprintf(" [Group %s] %-28s %-24s\n", $tool->priorityGroup, $tool->name, $status);
+    if (!$tool->availability->available && $tool->availability->unavailableReason !== null) {
+        echo sprintf("           Reason: %s\n", $tool->availability->unavailableReason);
+    }
+}
+echo str_repeat('=', 74) . "\n";
+echo sprintf("Summary: %d / %d tools active on this server.\n", $availCount, count($app->registry->all()));
+exit(0);
+

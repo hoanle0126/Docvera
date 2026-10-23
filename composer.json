@@ -1,0 +1,30 @@
+{
+    "name": "docvera/docvera",
+    "description": "Docvera — Self-Hosted PDF & Document Tools Platform",
+    "type": "project",
+    "license": "Proprietary",
+    "require": {
+        "php": ">=8.2",
+        "ext-fileinfo": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-zip": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Docvera\\": "src/",
+            "Docvera\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "migrate": "php bin/migrate",
+        "cleanup": "php bin/cleanup",
+        "capabilities": "php bin/capabilities",
+        "test": "php bin/test"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

@@ -1,0 +1,15 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use Docvera\Core\Application;
+
+$app = new Application();
+$count = $app->executor->processAllQueuedJobs(50);
+
+echo sprintf("Docvera Queue Worker: processed %d queued job(s) at %s.\n", $count, gmdate('Y-m-d\TH:i:s\Z'));
+exit(0);
+

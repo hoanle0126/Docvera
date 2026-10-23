@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use Docvera\Core\Application;
+
+$app = new Application();
+$applied = $app->migrator->getAppliedMigrations();
+
+echo "Docvera Database Migrator (" . strtoupper($app->database->getDriverName()) . ")\n";
+echo str_repeat('-', 56) . "\n";
+foreach ($applied as $id) {
+    echo " [OK] " . $id . "\n";
+}
+echo str_repeat('-', 56) . "\n";
+echo sprintf("Total applied migrations: %d\n", count($applied));
+exit(0);
+
