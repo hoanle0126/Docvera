@@ -29,6 +29,11 @@
       "Docvera\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "Docvera\\Tests\\": "tests/"
+    }
+  },
   "scripts": {
     "serve": "php -S 127.0.0.1:8080 -t public public/index.php",
     "test": "php bin/test",

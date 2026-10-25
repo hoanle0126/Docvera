@@ -90,7 +90,7 @@ final class QpdfDriver implements ProcessingDriverInterface
         $cmd[] = $outputPath;
 
         $res = $this->runner->run($cmd, $workspace['work']);
-        if (!$res->isSuccessful() || !is_file($outputPath)) {
+        if ((!$res->isSuccessful() && $res->exitCode !== 3) || !is_file($outputPath)) {
             throw new RuntimeException('QPDF failed to merge PDF files.');
         }
 
@@ -153,7 +153,7 @@ final class QpdfDriver implements ProcessingDriverInterface
         ];
 
         $res = $this->runner->run($cmd, $workspace['work']);
-        if (!$res->isSuccessful() || !is_file($outputPath)) {
+        if ((!$res->isSuccessful() && $res->exitCode !== 3) || !is_file($outputPath)) {
             throw new RuntimeException('QPDF failed to rotate PDF pages.');
         }
 
@@ -204,7 +204,7 @@ final class QpdfDriver implements ProcessingDriverInterface
         ];
 
         $res = $this->runner->run($cmd, $workspace['work']);
-        if (!$res->isSuccessful() || !is_file($outputPath)) {
+        if ((!$res->isSuccessful() && $res->exitCode !== 3) || !is_file($outputPath)) {
             throw new RuntimeException('QPDF failed to encrypt the PDF.');
         }
 
@@ -242,7 +242,7 @@ final class QpdfDriver implements ProcessingDriverInterface
         ];
 
         $res = $this->runner->run($cmd, $workspace['work']);
-        if (!$res->isSuccessful() || !is_file($outputPath)) {
+        if ((!$res->isSuccessful() && $res->exitCode !== 3) || !is_file($outputPath)) {
             throw new ValidationException('Unable to unlock PDF. Please verify that the password is correct.');
         }
 
