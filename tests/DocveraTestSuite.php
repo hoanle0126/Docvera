@@ -1695,22 +1695,21 @@ final class DocveraTestSuite
 
             $pdo = new \PDO('sqlite:' . $sqlitePath);
             $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-            $pdo->exec('CREATE TABLE IF NOT EXISTS migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, migration VARCHAR(191) NOT NULL UNIQUE, executed_at VARCHAR(32) NOT NULL)');
             $v1Sql = (string) file_get_contents(dirname(__DIR__) . '/database/migrations/001_initial_schema.sql');
             $pdo->exec($v1Sql);
-            $pdo->prepare('INSERT INTO migrations (migration, executed_at) VALUES (:m, :t)')->execute([
-                'm' => '001_initial_schema.sql',
+            $pdo->prepare('INSERT INTO migrations (id, executed_at) VALUES (:id, :t)')->execute([
+                'id' => '001_initial_schema.sql',
                 't' => '2026-01-15T00:00:00Z',
             ]);
 
             // Insert a legacy v1.0.0 job row before Phase 2 columns existed
-            $pdo->exec("INSERT INTO jobs (
+            $pdo->exec("INSERT INTO processing_jobs (
                 id, session_hash, tool_id, status, driver_used, input_count, input_bytes,
-                output_filename, output_mime, output_bytes, page_count, download_token_hash,
+                output_filename, output_mime, output_bytes, download_token_hash,
                 summary_json, error_message, created_at, completed_at, expires_at, deleted_at
             ) VALUES (
                 'job_legacy_v1_000000000000000001', 'sess_v1', 'merge-pdf', 'completed', 'ghostscript',
-                2, 4096, 'merged-v1.pdf', 'application/pdf', 3800, 5, 'tok_v1',
+                2, 4096, 'merged-v1.pdf', 'application/pdf', 3800, 'tok_v1',
                 '{\"page_count\":5}', NULL, '2026-01-15T01:00:00Z', '2026-01-15T01:00:02Z', '2026-01-15T02:00:00Z', NULL
             )");
             unset($pdo);

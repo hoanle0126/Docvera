@@ -76,10 +76,14 @@ final class SafeProcessRunner
         $stderr = '';
         $maxOutputBytes = 1048576; // 1 MB cap per stream to prevent memory exhaustion
         $timedOut = false;
+        $capturedExitCode = null;
         $deadline = $startTime + $timeout;
 
         while (true) {
             $status = proc_get_status($process);
+            if (!$status['running'] && $capturedExitCode === null && (int) $status['exitcode'] !== -1) {
+                $capturedExitCode = (int) $status['exitcode'];
+            }
             $readStreams = [];
             if (!feof($pipes[1])) {
                 $readStreams[] = $pipes[1];
@@ -146,8 +150,11 @@ final class SafeProcessRunner
         fclose($pipes[2]);
 
         $statusAfter = proc_get_status($process);
+        if (!$statusAfter['running'] && $capturedExitCode === null && (int) $statusAfter['exitcode'] !== -1) {
+            $capturedExitCode = (int) $statusAfter['exitcode'];
+        }
         $closeCode = proc_close($process);
-        $exitCode = $statusAfter['running'] ? $closeCode : (int) $statusAfter['exitcode'];
+        $exitCode = $capturedExitCode ?? ($closeCode !== -1 ? $closeCode : 0);
         if ($timedOut) {
             $exitCode = 124;
         }
