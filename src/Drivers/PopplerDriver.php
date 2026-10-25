@@ -260,6 +260,9 @@ final class PopplerDriver implements ProcessingDriverInterface
 
         $baseTitle = pathinfo($input->originalSafeName, PATHINFO_FILENAME) ?: 'document';
         $mode = strtolower((string) ($options['split_mode'] ?? 'all_pages'));
+        if ($mode === 'every_n' && $pdfunite === null) {
+            throw new RuntimeException('Poppler pdfunite binary is required for every_n split mode.');
+        }
 
         $outputFilename = $baseTitle . '-split-pages.zip';
         $outputPath = $workspace['output'] . '/' . $outputFilename;

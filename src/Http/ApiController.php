@@ -70,7 +70,35 @@ final class ApiController
         $path = $request->path;
         $method = $request->method;
 
-        // 1. Public / Capability & OpenAPI Discovery Endpoints
+        // 1. Public / Health, Capability & OpenAPI Discovery Endpoints
+        if ($method === 'GET' && $path === '/api/v1/health') {
+            $report = $this->app->capabilities->toMachineReadableReport();
+            $readyTools = 0;
+            $totalTools = 0;
+            foreach ($this->app->registry->all() as $tool) {
+                $totalTools++;
+                if ($tool->availability->available) {
+                    $readyTools++;
+                }
+            }
+            $coreReady = (bool) ($report['healthy'] ?? $report['core_ready'] ?? false);
+            $statusCode = $coreReady ? 200 : 503;
+            return [
+                'status' => $statusCode,
+                'headers' => $headers,
+                'body' => [
+                    'ok' => $coreReady,
+                    'status' => $coreReady ? 'healthy' : 'degraded',
+                    'version' => (string) $this->app->config->get('version', '2.0.0'),
+                    'request_id' => $requestId,
+                    'core_ready' => $coreReady,
+                    'tools_ready' => $readyTools,
+                    'tools_total' => $totalTools,
+                    'capabilities' => $report['capabilities'] ?? [],
+                ],
+            ];
+        }
+
         if ($method === 'GET' && $path === '/api/v1/capabilities') {
             $report = $this->app->capabilities->toMachineReadableReport();
             $tools = [];
@@ -121,8 +149,8 @@ final class ApiController
             $headers['X-RateLimit-Remaining'] = (string) $rateInfo['remaining'];
             $headers['X-RateLimit-Reset'] = (string) $rateInfo['reset'];
 
-            // GET /api/v1/usage
-            if ($method === 'GET' && $path === '/api/v1/usage') {
+            // GET /api/v1/usage (and alias /api/v1/account/usage)
+            if ($method === 'GET' && ($path === '/api/v1/usage' || $path === '/api/v1/account/usage')) {
                 $summary = $this->app->entitlements->getUsageSummary($principal);
                 $body = [
                     'ok' => true,
@@ -130,6 +158,27 @@ final class ApiController
                     'usage' => $summary,
                 ];
                 $this->logAudit($request, $requestId, $principal, null, 200, $startTime, null, $body);
+                return ['status' => 200, 'headers' => $headers, 'body' => $body];
+            }
+
+            // GET /api/v1/jobs
+            if ($method === 'GET' && $path === '/api/v1/jobs') {
+                if (!$principal->hasApiScope('jobs:read')) {
+                    throw new ValidationException('API key lacks required "jobs:read" scope.', 403);
+                }
+                $limit = min(100, max(1, (int) $request->input('limit', 20)));
+                $jobs = $this->app->jobs->findByUserOrSession($principal->userId, null, $limit);
+                $formatted = array_map(
+                    fn(array $j): array => $this->formatJobApiResponse($j, $requestId),
+                    $jobs
+                );
+                $body = [
+                    'ok' => true,
+                    'request_id' => $requestId,
+                    'count' => count($formatted),
+                    'jobs' => $formatted,
+                ];
+                $this->logAudit($request, $requestId, $principal, null, 200, $startTime, null, null);
                 return ['status' => 200, 'headers' => $headers, 'body' => $body];
             }
 
@@ -231,7 +280,9 @@ final class ApiController
                 }
 
                 $asyncParam = $request->input('async', '0');
-                $async = in_array(strtolower((string) $asyncParam), ['1', 'true', 'yes'], true);
+                $preferHeader = strtolower((string) ($request->server['HTTP_PREFER'] ?? ''));
+                $async = in_array(strtolower((string) $asyncParam), ['1', 'true', 'yes'], true)
+                    || str_contains($preferHeader, 'respond-async');
 
                 $jobRecord = $this->app->executor->execute(
                     $tool->id,
@@ -333,6 +384,9 @@ final class ApiController
         $jobId = (string) $job['id'];
         $status = (string) ($job['status'] ?? 'completed');
 
+        $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];
+        unset($summary['queued_options'], $summary['staged_inputs']);
+
         return [
             'ok' => $status !== 'failed',
             'request_id' => $requestId,
@@ -347,7 +401,7 @@ final class ApiController
             'output_filename' => $job['output_filename'] ?? null,
             'output_mime' => $job['output_mime'] ?? null,
             'output_bytes' => (int) ($job['output_bytes'] ?? 0),
-            'summary' => $job['summary'] ?? [],
+            'summary' => $summary,
             'error_message' => $job['error_message'] ?? null,
             'created_at' => $job['created_at'] ?? null,
             'completed_at' => $job['completed_at'] ?? null,

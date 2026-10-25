@@ -158,6 +158,16 @@ final class ApiDocGenerator
     {
         $base = rtrim($baseUrl ?? (string) $this->config->get('url', 'http://localhost:8080'), '/');
         $paths = [
+            '/api/v1/health' => [
+                'get' => [
+                    'summary' => 'Check service health and core dependency readiness',
+                    'operationId' => 'getHealth',
+                    'responses' => [
+                        '200' => ['description' => 'Service is healthy and core capabilities are ready'],
+                        '503' => ['description' => 'Core runtime or storage capability is degraded'],
+                    ],
+                ],
+            ],
             '/api/v1/capabilities' => [
                 'get' => [
                     'summary' => 'Inspect server capabilities and tool readiness',
@@ -178,6 +188,14 @@ final class ApiDocGenerator
                     'operationId' => 'getUsage',
                     'security' => [['BearerAuth' => []]],
                     'responses' => ['200' => ['description' => 'Usage summary']],
+                ],
+            ],
+            '/api/v1/jobs' => [
+                'get' => [
+                    'summary' => 'List recent processing jobs for the authenticated account',
+                    'operationId' => 'listJobs',
+                    'security' => [['BearerAuth' => []]],
+                    'responses' => ['200' => ['description' => 'List of jobs']],
                 ],
             ],
             '/api/v1/jobs/{job_id}' => [

@@ -12,17 +12,40 @@ $app = new Application();
 $installer = new InstallController($app);
 
 $options = getopt('', [
+    'help',
     'check-only',
     'site-name::',
+    'app-name::',
     'app-url::',
     'mode::',
+    'business-mode::',
     'db-driver::',
+    'db-sqlite-path::',
     'admin-name::',
     'admin-email::',
     'admin-password::',
     'retention::',
+    'retention-minutes::',
     'max-mb::',
+    'max-file-size-mb::',
 ]);
+
+if (isset($options['help'])) {
+    echo "Usage: php bin/install [options]\n\n";
+    echo "Options:\n";
+    echo "  --check-only                 Run pre-flight checks only and exit\n";
+    echo "  --app-name=<name>            Brand/workspace name (default: Docvera)\n";
+    echo "  --app-url=<url>              Canonical application URL (default: http://localhost:8080)\n";
+    echo "  --business-mode=<mode>       Deployment mode: saas, free_ads, or private (default: saas)\n";
+    echo "  --db-driver=<driver>         Persistence driver: file, sqlite, or mysql (default: file)\n";
+    echo "  --db-sqlite-path=<path>      SQLite file path when --db-driver=sqlite\n";
+    echo "  --admin-name=<name>          Administrator display name\n";
+    echo "  --admin-email=<email>        Administrator email address\n";
+    echo "  --admin-password=<password>  Administrator password (min 8 chars; auto-generated if omitted)\n";
+    echo "  --retention-minutes=<min>    Default output retention TTL in minutes (default: 60)\n";
+    echo "  --max-file-size-mb=<mb>      Default upload file size limit in MB (default: 50)\n";
+    exit(0);
+}
 
 $report = $installer->buildPreflightReport();
 
@@ -73,15 +96,16 @@ if ($adminPass === '') {
 
 try {
     $result = $installer->executeInstall([
-        'site_name' => (string) ($options['site-name'] ?? 'Docvera'),
+        'site_name' => (string) ($options['app-name'] ?? $options['site-name'] ?? 'Docvera'),
         'app_url' => (string) ($options['app-url'] ?? 'http://localhost:8080'),
-        'deployment_mode' => (string) ($options['mode'] ?? 'saas'),
+        'deployment_mode' => (string) ($options['business-mode'] ?? $options['mode'] ?? 'saas'),
         'db_driver' => (string) ($options['db-driver'] ?? 'file'),
+        'db_sqlite_path' => (string) ($options['db-sqlite-path'] ?? 'storage/app/database/docvera.sqlite'),
         'admin_name' => (string) ($options['admin-name'] ?? 'System Administrator'),
         'admin_email' => $adminEmail,
         'admin_password' => $adminPass,
-        'default_retention_minutes' => (int) ($options['retention'] ?? 60),
-        'max_file_size_mb' => (int) ($options['max-mb'] ?? 50),
+        'default_retention_minutes' => (int) ($options['retention-minutes'] ?? $options['retention'] ?? 60),
+        'max_file_size_mb' => (int) ($options['max-file-size-mb'] ?? $options['max-mb'] ?? 50),
     ]);
 
     echo "Installation completed and locked.\n";

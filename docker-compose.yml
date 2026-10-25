@@ -1,0 +1,60 @@
+services:
+  docvera:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docvera-web
+    ports:
+      - "${DOCVERA_PORT:-8080}:8080"
+    environment:
+      APP_NAME: "${APP_NAME:-Docvera}"
+      APP_ENV: "${APP_ENV:-production}"
+      APP_DEBUG: "${APP_DEBUG:-false}"
+      APP_URL: "${APP_URL:-http://localhost:8080}"
+      DB_CONNECTION: "${DB_CONNECTION:-sqlite}"
+      DB_SQLITE_PATH: "storage/app/database/docvera.sqlite"
+      MAX_FILE_SIZE_MB: "${MAX_FILE_SIZE_MB:-50}"
+      MAX_FILES_PER_JOB: "${MAX_FILES_PER_JOB:-20}"
+      PROCESS_TIMEOUT_SECONDS: "${PROCESS_TIMEOUT_SECONDS:-60}"
+      RETENTION_TTL_MINUTES: "${RETENTION_TTL_MINUTES:-60}"
+    volumes:
+      - docvera_storage:/app/storage
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docvera-worker
+    command: ["php", "bin/worker", "--daemon", "--sleep=2", "--limit=25"]
+    environment:
+      APP_ENV: "${APP_ENV:-production}"
+      APP_DEBUG: "${APP_DEBUG:-false}"
+      DB_CONNECTION: "${DB_CONNECTION:-sqlite}"
+      DB_SQLITE_PATH: "storage/app/database/docvera.sqlite"
+    volumes:
+      - docvera_storage:/app/storage
+    depends_on:
+      - docvera
+    restart: unless-stopped
+
+  cleanup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docvera-cleanup
+    command: ["sh", "-c", "while true; do php bin/cleanup; sleep 300; done"]
+    environment:
+      APP_ENV: "${APP_ENV:-production}"
+      APP_DEBUG: "${APP_DEBUG:-false}"
+      DB_CONNECTION: "${DB_CONNECTION:-sqlite}"
+      DB_SQLITE_PATH: "storage/app/database/docvera.sqlite"
+    volumes:
+      - docvera_storage:/app/storage
+    depends_on:
+      - docvera
+    restart: unless-stopped
+
+volumes:
+  docvera_storage:
+

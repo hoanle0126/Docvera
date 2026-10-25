@@ -341,6 +341,7 @@ final class CapabilityDetector
 
         return [
             'healthy' => $coreReady,
+            'core_ready' => $coreReady,
             'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
             'retention_ttl_minutes' => (int) $this->config->get('limits.retention_ttl_minutes', 60),
             'max_file_size_mb' => (int) $this->config->get('limits.max_file_size_mb', 50),

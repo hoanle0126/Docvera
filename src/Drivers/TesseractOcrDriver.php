@@ -57,13 +57,31 @@ final class TesseractOcrDriver implements ProcessingDriverInterface
         $imageInputs = [];
         if ($input->mimeType === 'application/pdf') {
             $pdftoppm = $this->capabilities->getBinaryPath('pdftoppm', ['pdftoppm']);
-            if ($pdftoppm === null) {
-                throw new RuntimeException('Poppler pdftoppm is required to rasterize scanned PDF pages for OCR.');
-            }
-            $prefix = $workspace['work'] . '/scan_page';
-            $rRes = $this->runner->run([$pdftoppm, '-png', '-r', '300', $input->internalPath, $prefix], $workspace['work']);
-            if (!$rRes->isSuccessful()) {
-                throw new RuntimeException('Failed to rasterize scanned PDF pages for OCR.');
+            $gs = $this->capabilities->getBinaryPath('gs', ['gs', 'gswin64c']);
+            if ($pdftoppm !== null) {
+                $prefix = $workspace['work'] . '/scan_page';
+                $rRes = $this->runner->run([$pdftoppm, '-png', '-r', '300', $input->internalPath, $prefix], $workspace['work']);
+                if (!$rRes->isSuccessful()) {
+                    throw new RuntimeException('Failed to rasterize scanned PDF pages for OCR.');
+                }
+            } elseif ($gs !== null) {
+                $pattern = $workspace['work'] . '/scan_page-%04d.png';
+                $rRes = $this->runner->run([
+                    $gs,
+                    '-dSAFER',
+                    '-dBATCH',
+                    '-dNOPAUSE',
+                    '-dQUIET',
+                    '-sDEVICE=png16m',
+                    '-r300',
+                    '-sOutputFile=' . $pattern,
+                    $input->internalPath,
+                ], $workspace['work']);
+                if (!$rRes->isSuccessful()) {
+                    throw new RuntimeException('Failed to rasterize scanned PDF pages with Ghostscript for OCR.');
+                }
+            } else {
+                throw new RuntimeException('Poppler (pdftoppm) or Ghostscript (gs) is required to rasterize scanned PDF pages for OCR.');
             }
             $imageInputs = glob($workspace['work'] . '/scan_page*.png') ?: [];
             sort($imageInputs, SORT_NATURAL);

@@ -8,14 +8,16 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 use Docvera\Core\Application;
 
 $app = new Application();
+$newlyApplied = $app->migrator->migrate();
 $applied = $app->migrator->getAppliedMigrations();
 
 echo "Docvera Database Migrator (" . strtoupper($app->database->getDriverName()) . ")\n";
 echo str_repeat('-', 56) . "\n";
 foreach ($applied as $id) {
-    echo " [OK] " . $id . "\n";
+    $tag = in_array($id, $newlyApplied, true) ? '[NEW]' : '[OK ]';
+    echo " " . $tag . " " . $id . "\n";
 }
 echo str_repeat('-', 56) . "\n";
-echo sprintf("Total applied migrations: %d\n", count($applied));
+echo sprintf("Total applied migrations: %d (%d newly applied)\n", count($applied), count($newlyApplied));
 exit(0);
 

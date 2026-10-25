@@ -1,30 +1,48 @@
 {
-    "name": "docvera/docvera",
-    "description": "Docvera — Self-Hosted PDF & Document Tools Platform",
-    "type": "project",
-    "license": "Proprietary",
-    "require": {
-        "php": ">=8.2",
-        "ext-fileinfo": "*",
-        "ext-json": "*",
-        "ext-mbstring": "*",
-        "ext-openssl": "*",
-        "ext-zip": "*"
-    },
-    "autoload": {
-        "psr-4": {
-            "Docvera\\": "src/",
-            "Docvera\\Tests\\": "tests/"
-        }
-    },
-    "scripts": {
-        "migrate": "php bin/migrate",
-        "cleanup": "php bin/cleanup",
-        "capabilities": "php bin/capabilities",
-        "test": "php bin/test"
-    },
-    "config": {
-        "optimize-autoloader": true,
-        "sort-packages": true
+  "name": "docvera/docvera",
+  "description": "Docvera — Privacy-First, Self-Hosted Document Processing Platform & REST API",
+  "type": "project",
+  "license": "Apache-2.0",
+  "keywords": [
+    "pdf",
+    "document-processing",
+    "ocr",
+    "self-hosted",
+    "privacy-first",
+    "rest-api",
+    "qpdf",
+    "ghostscript",
+    "poppler",
+    "libreoffice",
+    "tesseract"
+  ],
+  "require": {
+    "php": ">=8.2",
+    "ext-fileinfo": "*",
+    "ext-gd": "*",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-zip": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Docvera\\": "src/"
     }
+  },
+  "scripts": {
+    "serve": "php -S 127.0.0.1:8080 -t public public/index.php",
+    "test": "php bin/test",
+    "lint": "find src bin public views tests config -name '*.php' -print0 | xargs -0 -n1 php -l",
+    "capabilities": "php bin/capabilities",
+    "install": "php bin/install",
+    "install-check": "php bin/install --check-only",
+    "migrate": "php bin/migrate",
+    "cleanup": "php bin/cleanup",
+    "worker": "php bin/worker --once",
+    "package-release": "php bin/package-release"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
 }

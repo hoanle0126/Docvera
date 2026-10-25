@@ -270,7 +270,7 @@ final class ToolExecutionService
                 return $queuedRecord;
             }
 
-            $driverResult = $driver->process($tool->id, $stagedInputs, $options, $workspace);
+            $driverResult = $this->executeWithDriverFallback($tool, $driver, $stagedInputs, $options, $workspace);
 
             if (!is_file($driverResult->outputPath) || (int) filesize($driverResult->outputPath) <= 0) {
                 throw new RuntimeException('Processing finished without generating a valid output file.');
@@ -417,7 +417,7 @@ final class ToolExecutionService
 
         try {
             $workspace = $this->storage->createJobWorkspace($jobId);
-            $driverResult = $driver->process($tool->id, $stagedInputs, $options, $workspace);
+            $driverResult = $this->executeWithDriverFallback($tool, $driver, $stagedInputs, $options, $workspace);
 
             if (!is_file($driverResult->outputPath) || (int) filesize($driverResult->outputPath) <= 0) {
                 throw new RuntimeException('Async processing finished without generating an output file.');
@@ -432,6 +432,7 @@ final class ToolExecutionService
             $job['output_mime'] = $driverResult->outputMimeType;
             $job['output_bytes'] = $driverResult->outputBytes;
             $job['summary'] = $driverResult->summary;
+            $job['request_params'] = [];
             $job['completed_at'] = gmdate('Y-m-d\TH:i:s\Z');
             $job['error_message'] = null;
             $this->jobs->save($job);
@@ -447,6 +448,8 @@ final class ToolExecutionService
         } catch (Throwable $e) {
             $this->storage->deleteJobWorkspace($jobId);
             $job['status'] = 'failed';
+            $job['summary'] = [];
+            $job['request_params'] = [];
             $job['error_message'] = $e instanceof ValidationException
                 ? $e->getMessage()
                 : 'Asynchronous document processing failed.';
@@ -465,6 +468,57 @@ final class ToolExecutionService
                 $this->entitlements->releaseConcurrentSlotBySubjectKey($subjectKey, $subjectType);
             }
         }
+    }
+
+    /**
+     * Executes the primary driver and falls back to remaining available candidate drivers
+     * if a non-validation runtime failure occurs in the primary binary.
+     *
+     * @param list<StagedFile> $stagedInputs
+     * @param array<string, mixed> $options
+     * @param array{root: string, input: string, output: string, work: string} $workspace
+     */
+    private function executeWithDriverFallback(
+        ToolDefinition $tool,
+        ProcessingDriverInterface $primaryDriver,
+        array $stagedInputs,
+        array $options,
+        array $workspace
+    ): \Docvera\Drivers\DriverResult {
+        $candidates = [$primaryDriver->getName() => $primaryDriver];
+        foreach ($tool->candidateDrivers as $candidateKey) {
+            if (isset($this->drivers[$candidateKey]) && $this->drivers[$candidateKey]->isAvailable()) {
+                $candidates[$candidateKey] = $this->drivers[$candidateKey];
+            }
+        }
+
+        $lastException = null;
+        $candidateList = array_values($candidates);
+        $totalCandidates = count($candidateList);
+
+        foreach ($candidateList as $idx => $candidateDriver) {
+            try {
+                return $candidateDriver->process($tool->id, $stagedInputs, $options, $workspace);
+            } catch (ValidationException $ve) {
+                throw $ve;
+            } catch (Throwable $e) {
+                $lastException = $e;
+                if ($idx + 1 < $totalCandidates) {
+                    $this->storage->removeDirectoryRecursive($workspace['work']);
+                    $this->storage->removeDirectoryRecursive($workspace['output']);
+                    @mkdir($workspace['work'], 0700, true);
+                    @mkdir($workspace['output'], 0700, true);
+                    $this->logger->info('driver.fallback', [
+                        'tool_id' => $tool->id,
+                        'failed_driver' => $candidateDriver->getName(),
+                        'next_driver' => $candidateList[$idx + 1]->getName(),
+                        'reason' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        throw $lastException ?? new RuntimeException('All candidate drivers failed to process the document.');
     }
 
     /**

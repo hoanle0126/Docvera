@@ -191,6 +191,96 @@ final class UploadValidator
             if (str_contains($header, "\0")) {
                 throw new ValidationException(sprintf('File "%s" contains binary data and is not a valid plain-text file.', $safeDisplay));
             }
+            return;
+        }
+
+        $openXmlPrefixMap = [
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'word/',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xl/',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'ppt/',
+        ];
+
+        if (isset($openXmlPrefixMap[$mime]) || $mime === 'application/zip') {
+            $requiredPrefix = $openXmlPrefixMap[$mime] ?? match (strtolower(pathinfo($originalName, PATHINFO_EXTENSION))) {
+                'docx' => 'word/',
+                'xlsx' => 'xl/',
+                'pptx' => 'ppt/',
+                default => null,
+            };
+            $this->verifyOpenXmlArchive($path, $safeDisplay, $requiredPrefix);
+            return;
+        }
+
+        if (in_array($mime, ['application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint'], true)) {
+            if (!str_starts_with($header, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1")) {
+                throw new ValidationException(sprintf('File "%s" is not a valid legacy Microsoft Office (OLE2) document.', $safeDisplay));
+            }
+        }
+    }
+
+    private function verifyOpenXmlArchive(string $path, string $safeDisplay, ?string $requiredDirPrefix): void
+    {
+        $header = $this->readHeaderBytes($path, 4);
+        if ($header !== "PK\x03\x04") {
+            throw new ValidationException(sprintf('File "%s" is not a valid OpenXML container archive.', $safeDisplay));
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($path, \ZipArchive::RDONLY) !== true) {
+            throw new ValidationException(sprintf('File "%s" could not be opened as a valid OpenXML package.', $safeDisplay));
+        }
+
+        try {
+            $numFiles = $zip->numFiles;
+            if ($numFiles <= 0 || $numFiles > 2500) {
+                throw new ValidationException(sprintf('File "%s" has an invalid or excessive archive entry count (%d entries).', $safeDisplay, $numFiles));
+            }
+
+            $hasContentTypes = false;
+            $hasRequiredPrefix = ($requiredDirPrefix === null);
+            $totalUncompressedBytes = 0;
+            $totalCompressedBytes = max(1, (int) filesize($path));
+            $maxUncompressedBytes = 250 * 1024 * 1024; // 250 MB decompression ceiling
+
+            for ($i = 0; $i < $numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                if (!is_array($stat) || !isset($stat['name'])) {
+                    continue;
+                }
+                $entryName = (string) $stat['name'];
+                if (
+                    str_contains($entryName, "\0")
+                    || str_contains($entryName, '..')
+                    || str_starts_with($entryName, '/')
+                    || str_starts_with($entryName, '\\')
+                    || str_contains($entryName, '\\')
+                ) {
+                    throw new ValidationException(sprintf('File "%s" contains unsafe archive entry paths.', $safeDisplay));
+                }
+
+                $uncompressedSize = max(0, (int) ($stat['size'] ?? 0));
+                $totalUncompressedBytes += $uncompressedSize;
+                if ($totalUncompressedBytes > $maxUncompressedBytes) {
+                    throw new ValidationException(sprintf('File "%s" exceeds the maximum allowed uncompressed document size (possible decompression bomb).', $safeDisplay));
+                }
+
+                if ($entryName === '[Content_Types].xml') {
+                    $hasContentTypes = true;
+                }
+                if ($requiredDirPrefix !== null && str_starts_with($entryName, $requiredDirPrefix)) {
+                    $hasRequiredPrefix = true;
+                }
+            }
+
+            if ($totalUncompressedBytes > 10 * 1024 * 1024 && ($totalUncompressedBytes / $totalCompressedBytes) > 100) {
+                throw new ValidationException(sprintf('File "%s" exceeds the allowed compression ratio limit.', $safeDisplay));
+            }
+
+            if (!$hasContentTypes || !$hasRequiredPrefix) {
+                throw new ValidationException(sprintf('File "%s" is missing required OpenXML document structure ([Content_Types].xml or %s).', $safeDisplay, $requiredDirPrefix ?? 'document payload'));
+            }
+        } finally {
+            $zip->close();
         }
     }
 

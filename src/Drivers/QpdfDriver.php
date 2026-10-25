@@ -71,7 +71,7 @@ final class QpdfDriver implements ProcessingDriverInterface
 
         foreach ($inputs as $file) {
             $info = $this->inspector->inspect($file->internalPath);
-            if ($info['encrypted'] && $info['page_count'] === 0) {
+            if ($info['encrypted']) {
                 throw new ValidationException(
                     sprintf('File "%s" is password-protected. Please unlock it first using the Unlock PDF tool.', $file->originalSafeName)
                 );
@@ -116,7 +116,7 @@ final class QpdfDriver implements ProcessingDriverInterface
     private function rotatePages(string $qpdf, StagedFile $input, array $options, array $workspace): DriverResult
     {
         $info = $this->inspector->inspect($input->internalPath);
-        if ($info['encrypted'] && $info['page_count'] === 0) {
+        if ($info['encrypted']) {
             throw new ValidationException(
                 sprintf('File "%s" is password-protected. Please unlock it first using the Unlock PDF tool.', $input->originalSafeName)
             );
@@ -127,8 +127,19 @@ final class QpdfDriver implements ProcessingDriverInterface
             throw new ValidationException('Rotation angle must be 90, 180, or 270 degrees.');
         }
 
+        $totalPages = max(1, (int) $info['page_count']);
         $pagesSpec = trim((string) ($options['pages'] ?? 'all'));
-        $rangeArg = ($pagesSpec === '' || strtolower($pagesSpec) === 'all') ? '1-z' : $pagesSpec;
+        if ($pagesSpec === '' || strtolower($pagesSpec) === 'all') {
+            $rangeArg = '1-z';
+        } else {
+            $selectedPages = PdfInspector::parsePageRangeSpec($pagesSpec, $totalPages);
+            if ($selectedPages === []) {
+                throw new ValidationException(
+                    sprintf('No valid pages matched "%s" (document has %d pages).', $pagesSpec, $totalPages)
+                );
+            }
+            $rangeArg = implode(',', $selectedPages);
+        }
 
         $baseTitle = pathinfo($input->originalSafeName, PATHINFO_FILENAME) ?: 'document';
         $outputFilename = $baseTitle . '-rotated.pdf';
@@ -225,6 +236,7 @@ final class QpdfDriver implements ProcessingDriverInterface
             $qpdf,
             '--password=' . $password,
             '--decrypt',
+            '--',
             $input->internalPath,
             $outputPath,
         ];

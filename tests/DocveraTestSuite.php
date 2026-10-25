@@ -105,6 +105,7 @@ final class DocveraTestSuite
             $this->testGuidedWebInstallerPreflightExecutionAndLockout();
             $this->testAdminControllerFormActionsAndViewDataParity();
             $this->testUpgradePathFromPhase1SchemaFixture();
+            $this->testOpenXmlArchiveSecurityAndRestApiHardening();
         } finally {
             $this->app->storage->removeDirectoryRecursive($this->tmpDir);
         }
@@ -133,8 +134,8 @@ final class DocveraTestSuite
             $this->assertTrue($all['database']->available, 'database should be available');
             $this->assertTrue($all['ghostscript']->available, 'ghostscript should be available');
             $this->assertTrue($all['poppler']->available, 'poppler should be available');
-            $this->assertTrue(!$all['libreoffice']->available, 'libreoffice should be detected as missing on this host');
-            $this->assertTrue(!$all['tesseract']->available, 'tesseract should be detected as missing on this host');
+            $this->assertTrue(isset($all['libreoffice']), 'libreoffice capability entry must be present');
+            $this->assertTrue(isset($all['tesseract']), 'tesseract capability entry must be present');
 
             $report = $this->app->capabilities->toMachineReadableReport();
             $this->assertTrue($report['healthy'] === true, 'Machine-readable report should be healthy');
@@ -143,17 +144,26 @@ final class DocveraTestSuite
 
     private function testToolRegistryStructure(): void
     {
-        $this->runCase('Tool Registry exposes 22 structured tools (18 active + 4 capability-gated)', function (): void {
+        $this->runCase('Tool Registry exposes 22 structured tools (18 core + 4 capability-gated)', function (): void {
             $tools = $this->app->registry->all(true);
             $this->assertEquals(22, count($tools), 'Expected 22 Phase 1 tools');
 
             $active = array_filter($tools, static fn($t): bool => $t->availability->available);
-            $this->assertEquals(18, count($active), 'Expected 18 active tools on this host');
+            $this->assertTrue(count($active) >= 18, 'Expected at least 18 active tools on this host');
+
+            // Verify deterministic capability gating when optional binaries are absent
+            $gatedConfig = new Config($this->app->config->all());
+            $gatedConfig->set('binaries.libreoffice', '__DISABLED__');
+            $gatedConfig->set('binaries.tesseract', '__DISABLED__');
+            $gatedApp = new Application($gatedConfig);
+
+            $gatedActive = array_filter($gatedApp->registry->all(true), static fn($t): bool => $t->availability->available);
+            $this->assertEquals(18, count($gatedActive), 'Expected 18 active tools when LibreOffice and Tesseract are absent');
 
             foreach (['ocr-pdf', 'word-to-pdf', 'excel-to-pdf', 'powerpoint-to-pdf'] as $gatedId) {
-                $t = $this->app->registry->get($gatedId);
+                $t = $gatedApp->registry->get($gatedId);
                 $this->assertTrue($t !== null, "Tool $gatedId must exist");
-                $this->assertTrue(!$t->availability->available, "Tool $gatedId must be marked unavailable");
+                $this->assertTrue(!$t->availability->available, "Tool $gatedId must be marked unavailable when binary is absent");
                 $this->assertTrue(
                     $t->availability->unavailableReason !== null && $t->availability->unavailableReason !== '',
                     "Tool $gatedId must provide an unavailable reason"
@@ -620,10 +630,14 @@ final class DocveraTestSuite
         $this->runCase('Unavailable tools (Word/Excel/PPT/OCR) block execution cleanly with 422 before running', function (): void {
             $docx = $this->fixtures->createMinimalDocx($this->tmpDir . '/fixtures/sample.docx');
 
+            $gatedConfig = new Config($this->app->config->all());
+            $gatedConfig->set('binaries.libreoffice', '__DISABLED__');
+            $gatedApp = new Application($gatedConfig);
+
             $caughtCode = 0;
             $caughtMessage = '';
             try {
-                $this->app->executor->execute('word-to-pdf', [
+                $gatedApp->executor->execute('word-to-pdf', [
                     ['path' => $docx, 'original_name' => 'sample.docx'],
                 ], [], 'session_test_1');
             } catch (ValidationException $ve) {
@@ -1723,6 +1737,137 @@ final class DocveraTestSuite
             $this->assertTrue($legacyJob !== null, 'Legacy v1.0.0 job must survive schema upgrade');
             $this->assertEquals('merged-v1.pdf', $legacyJob['output_filename'], 'Legacy job filename must be intact');
             $this->assertTrue( count($upgradedApp->platform->listPlans(false)) >= 4, 'Default plans must be seeded during upgrade');
+        });
+    }
+
+    private function testOpenXmlArchiveSecurityAndRestApiHardening(): void
+    {
+        $this->runCase('OpenXML archive validator blocks traversal & spoofed archives while REST API supports /api/v1/health, /api/v1/jobs, /api/v1/account/usage, and scrubs async job parameters', function (): void {
+            $wordTool = $this->app->registry->get('word-to-pdf');
+            $this->assertTrue($wordTool !== null, 'word-to-pdf tool must exist');
+
+            // 1. Valid minimal DOCX passes UploadValidator
+            $validDocx = $this->fixtures->createMinimalDocx($this->tmpDir . '/fixtures/valid_check.docx');
+            $validated = $this->app->validator->validateFiles(
+                [['path' => $validDocx, 'original_name' => 'valid_check.docx']],
+                $wordTool->supportedMimes
+            );
+            $this->assertEquals(1, count($validated), 'Valid minimal DOCX must pass UploadValidator');
+
+            // 2. Spoofed non-ZIP file with .docx extension is rejected
+            $fakeDocx = $this->tmpDir . '/fixtures/spoofed.docx';
+            file_put_contents($fakeDocx, "PK\x03\x04NOT_A_REAL_OPENXML_ARCHIVE_PAYLOAD");
+            $spoofRejected = false;
+            try {
+                $this->app->validator->validateFiles(
+                    [['path' => $fakeDocx, 'original_name' => 'spoofed.docx']],
+                    $wordTool->supportedMimes
+                );
+            } catch (ValidationException) {
+                $spoofRejected = true;
+            }
+            $this->assertTrue($spoofRejected, 'Corrupted/spoofed .docx ZIP must be rejected by UploadValidator');
+
+            // 3. ZIP archive missing word/ structure is rejected for .docx
+            $missingWordDirZip = $this->tmpDir . '/fixtures/not_word.docx';
+            $z = new ZipArchive();
+            $z->open($missingWordDirZip, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+            $z->addFromString('[Content_Types].xml', '<Types/>');
+            $z->addFromString('other/file.xml', '<doc/>');
+            $z->close();
+            $missingStructureRejected = false;
+            try {
+                $this->app->validator->validateFiles(
+                    [['path' => $missingWordDirZip, 'original_name' => 'not_word.docx']],
+                    $wordTool->supportedMimes
+                );
+            } catch (ValidationException) {
+                $missingStructureRejected = true;
+            }
+            $this->assertTrue($missingStructureRejected, 'ZIP missing word/ structure must be rejected as invalid .docx');
+
+            // 4. ZIP archive containing path traversal entry (../evil.xml) is rejected
+            $traversalZip = $this->tmpDir . '/fixtures/traversal.docx';
+            $z2 = new ZipArchive();
+            $z2->open($traversalZip, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+            $z2->addFromString('[Content_Types].xml', '<Types/>');
+            $z2->addFromString('word/document.xml', '<w:document/>');
+            $z2->addFromString('../evil.xml', '<exploit/>');
+            $z2->close();
+            $traversalZipRejected = false;
+            try {
+                $this->app->validator->validateFiles(
+                    [['path' => $traversalZip, 'original_name' => 'traversal.docx']],
+                    $wordTool->supportedMimes
+                );
+            } catch (ValidationException) {
+                $traversalZipRejected = true;
+            }
+            $this->assertTrue($traversalZipRejected, 'OpenXML archive with ../ path traversal entry must be rejected');
+
+            // 5. Verify GET /api/v1/health public probe
+            $api = new ApiController($this->app);
+            $healthRes = $api->dispatch(new Request('GET', '/api/v1/health', [], [], [], ['REMOTE_ADDR' => '127.0.0.1']));
+            $this->assertEquals(200, $healthRes['status'], 'GET /api/v1/health must return 200 on healthy host');
+            $this->assertTrue(($healthRes['body']['ok'] ?? false) === true, 'Health response must report ok: true');
+            $this->assertEquals(22, $healthRes['body']['tools_total'] ?? 0, 'Health response must report 22 total tools');
+
+            // 6. Verify GET /api/v1/account/usage, GET /api/v1/jobs, Prefer: respond-async on POST /api/v1/tools/protect-pdf, and parameter scrubbing
+            $proUser = $this->app->auth->register('Hardening Pro', 'hardening-pro@docvera.test', 'ProPass1234!', 'user', 'pro');
+            $issuedKey = $this->app->auth->createApiKey(
+                (string) $proUser['id'],
+                'Hardening Suite Key',
+                ['tools:execute', 'jobs:read', 'jobs:download', 'jobs:delete']
+            );
+            $bearer = [
+                'REMOTE_ADDR' => '127.0.0.1',
+                'HTTP_AUTHORIZATION' => 'Bearer ' . $issuedKey['plain_secret'],
+            ];
+
+            $usageAliasRes = $api->dispatch(new Request('GET', '/api/v1/account/usage', [], [], [], $bearer));
+            $this->assertEquals(200, $usageAliasRes['status'], 'GET /api/v1/account/usage must return 200');
+            $this->assertTrue(isset($usageAliasRes['body']['usage']['plan_id']), 'Usage summary must contain plan_id');
+
+            $srcPdf = $this->fixtures->createSinglePagePdf($this->tmpDir . '/fixtures/async_secret.pdf', 'Secret Scrub Check');
+            $filePayload = [
+                'files' => [
+                    'name' => 'async_secret.pdf',
+                    'type' => 'application/pdf',
+                    'tmp_name' => $srcPdf,
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => filesize($srcPdf),
+                ],
+            ];
+            $asyncProtectRes = $api->dispatch(new Request(
+                'POST',
+                '/api/v1/tools/protect-pdf',
+                [],
+                ['user_password' => 'SuperSecretPassword99!'],
+                $filePayload,
+                array_merge($bearer, ['HTTP_PREFER' => 'respond-async'])
+            ));
+            $this->assertEquals(202, $asyncProtectRes['status'], 'Prefer: respond-async must enqueue job with HTTP 202');
+            $queuedJobId = (string) ($asyncProtectRes['body']['job_id'] ?? '');
+            $this->assertTrue(str_starts_with($queuedJobId, 'job_'), 'Queued job ID must be returned');
+
+            // Poll job status while still queued: ensure queued_options (containing password) is NOT leaked in summary
+            $pollWhileQueued = $api->dispatch(new Request('GET', '/api/v1/jobs/' . $queuedJobId, [], [], [], $bearer));
+            $this->assertEquals(200, $pollWhileQueued['status'], 'GET /api/v1/jobs/{id} must return 200');
+            $this->assertTrue(!isset($pollWhileQueued['body']['summary']['queued_options']), 'API response must never leak queued_options in summary');
+            $this->assertTrue(!isset($pollWhileQueued['body']['summary']['staged_inputs']), 'API response must never leak staged_inputs in summary');
+
+            // Process queued job via worker and verify request_params are scrubbed from stored job record
+            $processed = $this->app->executor->processAllQueuedJobs(10);
+            $this->assertTrue($processed >= 1, 'Worker must process the queued protect-pdf job');
+
+            $storedJobAfter = $this->app->jobs->find($queuedJobId);
+            $this->assertEquals('completed', $storedJobAfter['status'] ?? '', 'Job must transition to completed');
+            $this->assertEquals([], $storedJobAfter['request_params'] ?? ['leaked'], 'Completed async job must scrub request_params so passwords do not linger in DB');
+
+            // Verify GET /api/v1/jobs list endpoint
+            $jobsListRes = $api->dispatch(new Request('GET', '/api/v1/jobs', ['limit' => '10'], [], [], $bearer));
+            $this->assertEquals(200, $jobsListRes['status'], 'GET /api/v1/jobs must return 200');
+            $this->assertTrue(($jobsListRes['body']['count'] ?? 0) >= 1, 'GET /api/v1/jobs must list the user jobs');
         });
     }
 

@@ -1,144 +1,185 @@
-# Docvera v2.0.0 — Self-Hosted PDF & Document Workbench, SaaS Platform & Developer API
+# Docvera
 
-**Docvera** is a privacy-first, self-hosted PHP 8.2+ PDF and document processing platform engineered for commercial SaaS deployment, internal enterprise teams, and public utility sites. All 22 document operations execute locally on your server inside isolated `0700` temporary working directories without requiring paid third-party cloud document APIs.
+**Privacy-First, Self-Hosted Document Processing Platform & REST API**
 
----
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-4F5B93.svg)](composer.json)
+[![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1.0-6BA539.svg)](src/Api/ApiDocGenerator.php)
 
-## Documentation Index
+Docvera is an open-source, self-hosted PDF and document workbench, multi-tenant platform, and versioned REST API (`/api/v1/*`). It processes every document **locally on your infrastructure** inside isolated `0700` per-job workspaces using standard Linux CLI engines (`qpdf`, `poppler-utils`, `ghostscript`, `libreoffice`, `tesseract-ocr`) and native PHP extensions (`gd`, `zip`, `fileinfo`)—with **zero external cloud processing calls** and **zero telemetry**.
 
-- **Complete Operator & Customer Manual (Markdown):** [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md)
-- **Offline HTML Customer Manual:** [`docs/index.html`](docs/index.html)
-- **Release Changelog:** [`CHANGELOG.md`](CHANGELOG.md)
-- **Third-Party License Inventory:** [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)
-
----
-
-## Core Architecture Highlights
-
-- **Guided Web Installer (`/install`) & CLI Installer (`bin/install`):** Inspects required PHP runtime extensions and writable storage directories separately from optional system binaries (`gs`, `qpdf`, `pdftoppm`, `libreoffice`, `tesseract`), configures `.env` with a 256-bit CSPRNG `APP_SECRET`, runs idempotent migrations, seeds default plans, creates the administrator account, and locks `/install` (`HTTP 403`) via `storage/app/database/.installed.lock`.
-- **Central Tool Registry & Capability System:** Every tool declares its MIME requirements, file-count limits, option schema, candidate drivers, timeout, and retention policy in [`src/Tools/ToolRegistry.php`](src/Tools/ToolRegistry.php).
-- **Live Server Dependency Detection:** [`src/Capabilities/CapabilityDetector.php`](src/Capabilities/CapabilityDetector.php) inspects PHP runtime extensions, storage permissions, database migrations, and system binaries (`gs`, `pdfinfo`, `pdftoppm`, `pdfseparate`, `pdfunite`, `qpdf`, `libreoffice`, `tesseract`). Tools whose external binary is absent on a server automatically degrade to an explicit **Unavailable** diagnostic state rather than failing with an HTTP 500 error.
-- **Zero-Shell Subprocess Isolation:** [`src/Security/SafeProcessRunner.php`](src/Security/SafeProcessRunner.php) executes external binaries strictly via `proc_open()` with an argument array (`bypass_shell => true`), enforcing wall-clock timeouts (`PROCESS_TIMEOUT_SECONDS`) and preventing shell command injection.
-- **Strict Upload & Magic-Byte Validation:** [`src/Security/UploadValidator.php`](src/Security/UploadValidator.php) inspects files using `finfo` MIME detection and structural header/trailer verification (`%PDF-` and `%%EOF` for PDFs, magic bytes for JPEG/PNG).
-- **Update-Safe Database & Storage Layer:** Supports `sqlite` (PDO SQLite), `mysql` (PDO MySQL), and `file` (zero-config atomic flock store) with idempotent schema migrations (`bin/migrate`).
-- **Privacy & Ephemeral File Lifecycle:** Input working files are wiped as soon as processing finishes. Output files are protected by session-bound HMAC tokens, can be purged immediately by the user via **Delete File Now**, and are automatically swept by `bin/cleanup` after `RETENTION_TTL_MINUTES`.
-- **Multi-Deployment Business Engine:** Switch seamlessly at runtime via `/admin/business-mode` between:
-  1. `free_ads` — Public free document-tools site monetized through configurable ad slots (billing disabled).
-  2. `saas` — Freemium & Paid SaaS with configurable guest/registered/paid plans, Stripe & PayPal subscriptions, and API monetization.
-  3. `private` — Authenticated internal company/team document workbench (public guest tools and open registration disabled).
-- **Authoritative Plan & Quota Engine:** Central [`src/Entitlements/EntitlementService.php`](src/Entitlements/EntitlementService.php) enforces daily/monthly operations, max file size, max files per operation, max PDF pages, concurrent job slots, OCR/batch allowances, tool access lists, API quotas, and retention windows across both Web UI and REST API.
-- **Versioned REST API (`/api/v1/*`) & Auto-Generated Docs:** Exposes all 22 API-capable tools from `ToolRegistry` without duplicating processing logic. Supports SHA-256 hashed `dcv_live_...` API keys, granular scopes (`tools:execute`, `jobs:read`, `jobs:download`, `jobs:delete`), per-minute rate limiting, `Idempotency-Key` replay, synchronous & asynchronous (`async=1` + `bin/worker`) execution, and live documentation at `/developers/api` and `/api/v1/openapi.json`.
+![Docvera Workbench Overview](docs/screenshots/01-homepage-workbench.png)
 
 ---
 
-## Complete Tool Matrix (22 Tools)
+## Why Docvera?
 
-### Priority Group A (12 Core Tools)
-| Tool ID | Tool Name | Primary Drivers | Description |
-| :--- | :--- | :--- | :--- |
-| `merge-pdf` | **Merge PDF** | `qpdf` → `poppler` → `ghostscript` | Combine 2 or more PDF files in exact user sequence |
-| `split-pdf` | **Split PDF** | `poppler` → `ghostscript` | Split every page or every $N$ pages into separate PDFs (ZIP) |
-| `extract-pages` | **Extract Pages** | `ghostscript` | Extract specific pages or ranges (`1, 3-5`) into a new PDF |
-| `delete-pages` | **Delete Pages** | `ghostscript` | Remove selected pages from a PDF and save remaining pages |
-| `reorder-pages` | **Reorder Pages** | `poppler` → `ghostscript` | Rearrange PDF pages into any custom sequence |
-| `rotate-pages` | **Rotate Pages** | `qpdf` → `ghostscript` | Rotate all or selected pages by 90°, 180°, or 270° |
-| `images-to-pdf` | **Images to PDF** | `native_php_pdf` | Compile JPG and PNG images into A4, Letter, or Fit-to-Image PDFs |
-| `pdf-to-images` | **PDF to JPG / PNG** | `poppler` (`pdftoppm`) | Render PDF pages to PNG or JPG at 72, 150, or 300 DPI |
-| `compress-pdf` | **Compress PDF** | `ghostscript` | Optimize PDF streams and images (`screen`, `ebook`, `printer`) |
-| `protect-pdf` | **Password Protect PDF** | `qpdf` → `ghostscript` | Encrypt PDF with open password and owner permissions password |
-| `unlock-pdf` | **Unlock PDF** | `qpdf` → `ghostscript` | Decrypt a password-protected PDF using the known password |
-| `watermark-pdf` | **Watermark PDF** | `ghostscript` | Stamp vector text watermarks across all PDF pages |
-
-### Priority Group B (10 Extended Tools)
-| Tool ID | Tool Name | Primary Drivers | Description |
-| :--- | :--- | :--- | :--- |
-| `crop-pdf` | **Crop PDF** | `ghostscript` | Trim top, right, bottom, and left page margins in points |
-| `page-numbers` | **Add Page Numbers** | `ghostscript` | Stamp formatted page numbers (`Page 1 of N`, `1`) in header/footer |
-| `pdf-metadata` | **PDF Metadata View & Edit** | `poppler` + `ghostscript` | Inspect and update Title, Author, Subject, Keywords, and Creator |
-| `grayscale-pdf` | **Grayscale PDF** | `ghostscript` | Convert color PDFs to monochrome `DeviceGray` |
-| `flatten-pdf` | **Flatten PDF** | `ghostscript` | Flatten interactive annotations/forms or rasterize pages |
-| `text-to-pdf` | **Text to PDF** | `native_php_pdf` | Format `.txt` files or direct text into paginated PDFs |
-| `ocr-pdf` | **OCR Scanned PDF / Image** | `tesseract` | Extract text or generate searchable PDFs via Tesseract OCR |
-| `word-to-pdf` | **Word to PDF** | `libreoffice` | Convert `.docx` / `.doc` to PDF via headless LibreOffice |
-| `excel-to-pdf` | **Excel to PDF** | `libreoffice` | Convert `.xlsx` / `.xls` spreadsheets to PDF |
-| `powerpoint-to-pdf` | **PowerPoint to PDF** | `libreoffice` | Convert `.pptx` / `.ppt` presentations to PDF |
+- **100% On-Premise Document Privacy:** Uploaded files are validated by magic bytes, processed in isolated `storage/app/jobs/job_<32hex>/{input,work,output}` directories (`0700`), and have their `input/` and `work/` directories purged immediately inside a `finally` block as soon as processing completes.
+- **Unified Web Workbench & REST API:** All 22 document tools run through the exact same `ToolRegistry → UploadValidator → ToolExecutionService → ProcessingDriver` pipeline whether invoked from the browser or via `POST /api/v1/*`.
+- **Truthful Capability Detection & Automatic Driver Fallback:** Docvera probes host binaries at runtime (`php bin/capabilities`, `GET /api/v1/capabilities`). Tools with multiple candidate drivers (`qpdf → poppler → ghostscript`) automatically fall back if a primary binary is absent, and optional tools (`libreoffice`, `tesseract`) report clear remediation instructions rather than crashing at runtime.
+- **Zero-Bloat Stack:** Written in strict PHP 8.2+ with zero external Composer runtime packages and zero heavy frontend JS frameworks. Runs out of the box with an atomic `flock` JSON store, SQLite (WAL mode), or MySQL.
 
 ---
 
-## System Requirements & Optional Server Dependencies
+## Complete Tool & Driver Matrix (22 Tools)
 
-### Required Core Environment
-- **PHP:** `>= 8.2` (`8.2` or `8.3` recommended)
-- **PHP Extensions:** `fileinfo`, `zip`, `mbstring`, `openssl`, `json`
-- **Writable Directories:** `storage/app/jobs`, `storage/app/staged`, `storage/app/database`, `storage/logs`
+| Category | Tool Slug | REST API Endpoint | Primary & Fallback Drivers | Output Format | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Organize** | `merge-pdf` | `POST /api/v1/pdf/merge` | `qpdf → poppler → ghostscript` | `application/pdf` | `STABLE` |
+| **Organize** | `split-pdf` | `POST /api/v1/pdf/split` | `poppler → ghostscript` | `application/zip` (PDFs) | `STABLE` |
+| **Organize** | `extract-pages` | `POST /api/v1/pdf/extract-pages` | `qpdf → ghostscript` | `application/pdf` | `STABLE` |
+| **Organize** | `delete-pages` | `POST /api/v1/pdf/delete-pages` | `qpdf → ghostscript` | `application/pdf` | `STABLE` |
+| **Organize** | `reorder-pages` | `POST /api/v1/pdf/reorder-pages` | `qpdf → ghostscript` | `application/pdf` | `STABLE` |
+| **Organize** | `rotate-pages` | `POST /api/v1/pdf/rotate` | `qpdf → ghostscript` | `application/pdf` | `STABLE` |
+| **Convert to PDF** | `images-to-pdf` | `POST /api/v1/convert/images-to-pdf` | `native_php` (`ext-gd`) | `application/pdf` | `STABLE` |
+| **Convert to PDF** | `text-to-pdf` | `POST /api/v1/convert/text-to-pdf` | `native_php` | `application/pdf` | `STABLE` |
+| **Convert to PDF** | `word-to-pdf` | `POST /api/v1/convert/word-to-pdf` | `libreoffice` (`soffice`) | `application/pdf` | `STABLE` *(Requires LibreOffice)* |
+| **Convert to PDF** | `excel-to-pdf` | `POST /api/v1/convert/excel-to-pdf` | `libreoffice` (`soffice`) | `application/pdf` | `STABLE` *(Requires LibreOffice)* |
+| **Convert to PDF** | `powerpoint-to-pdf` | `POST /api/v1/convert/powerpoint-to-pdf` | `libreoffice` (`soffice`) | `application/pdf` | `STABLE` *(Requires LibreOffice)* |
+| **Convert from PDF** | `pdf-to-images` | `POST /api/v1/convert/pdf-to-images` | `poppler → ghostscript` | `image/png`, `image/jpeg`, or `application/zip` | `STABLE` |
+| **Convert from PDF** | `ocr-pdf` | `POST /api/v1/pdf/ocr` | `tesseract` (+ `pdftoppm`/`gs` for PDFs) | `application/pdf` or `text/plain` | `STABLE` *(Requires Tesseract)* |
+| **Optimize & Stamp** | `compress-pdf` | `POST /api/v1/pdf/compress` | `ghostscript` | `application/pdf` | `STABLE` |
+| **Optimize & Stamp** | `grayscale-pdf` | `POST /api/v1/pdf/grayscale` | `ghostscript` | `application/pdf` | `STABLE` |
+| **Optimize & Stamp** | `flatten-pdf` | `POST /api/v1/pdf/flatten` | `ghostscript → qpdf` | `application/pdf` | `STABLE` |
+| **Optimize & Stamp** | `watermark-pdf` | `POST /api/v1/pdf/watermark` | `ghostscript` | `application/pdf` | `STABLE` |
+| **Optimize & Stamp** | `page-numbers` | `POST /api/v1/pdf/page-numbers` | `ghostscript` | `application/pdf` | `STABLE` |
+| **Optimize & Stamp** | `crop-pdf` | `POST /api/v1/pdf/crop` | `ghostscript` | `application/pdf` | `STABLE` |
+| **Security & Metadata** | `protect-pdf` | `POST /api/v1/pdf/protect` | `qpdf → ghostscript` | `application/pdf` (AES-256) | `STABLE` |
+| **Security & Metadata** | `unlock-pdf` | `POST /api/v1/pdf/unlock` | `qpdf → ghostscript` | `application/pdf` | `STABLE` |
+| **Security & Metadata** | `pdf-metadata` | `POST /api/v1/pdf/metadata` | `ghostscript` | `application/pdf` | `STABLE` |
 
-### Recommended External System Binaries (Auto-Detected)
-Docvera does not bundle third-party binaries; instead, it detects installed packages on your host OS:
+*(Every tool can also be called via the uniform route `POST /api/v1/tools/{slug}`.)*
+
+---
+
+## Quickstart
+
+### Option A: Docker Compose (Recommended — All 22 Tools Active)
+
+The included [`Dockerfile`](Dockerfile) and [`docker-compose.yml`](docker-compose.yml) bundle PHP 8.3 together with `qpdf`, `poppler-utils`, `ghostscript`, `libreoffice`, and `tesseract-ocr`, plus background containers for the async queue worker and TTL cleanup service:
 
 ```bash
-# Ubuntu / Debian
-sudo apt update
-sudo apt install -y ghostscript poppler-utils qpdf libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress tesseract-ocr
+git clone https://github.com/hoanle0126/Docvera.git
+cd Docvera
+docker compose up -d --build
+```
+
+Open `http://localhost:8080/install` to complete the 60-second setup wizard, or run the CLI installer inside the container:
+
+```bash
+docker compose exec docvera php bin/install \
+  --app-name="Docvera" \
+  --app-url="http://localhost:8080" \
+  --business-mode="private" \
+  --db-driver="sqlite" \
+  --admin-email="admin@example.com" \
+  --admin-password="ChangeMeStrongPassword123!"
+```
+
+### Option B: Bare-Metal / Local PHP 8.2+ Setup
+
+```bash
+# 1. Install PHP extensions and native document tools (Ubuntu/Debian example)
+sudo apt-get update && sudo apt-get install -y \
+  php-cli php-gd php-mbstring php-sqlite3 php-xml php-zip \
+  ghostscript poppler-utils qpdf libreoffice tesseract-ocr
+
+# 2. Clone the repository
+git clone https://github.com/hoanle0126/Docvera.git
+cd Docvera
+
+# 3. Inspect detected host capabilities and active tools
+php bin/capabilities
+
+# 4. Run the automated verification suite
+php bin/test
+
+# 5. Start the development server
+php -S 127.0.0.1:8080 -t public public/index.php
 ```
 
 ---
 
-## Installation & Quick Start
+## REST API & Automation (`/api/v1/*`)
 
-### Option A — Guided Web Installer
-1. Point your web server's document root to `public/` (or run `php -S 127.0.0.1:8080 -t public public/index.php`).
-2. Open `http://127.0.0.1:8080/install` in your browser.
-3. Review the preflight checks, configure your database and admin credentials, and click **Run Installation & Lock Installer**.
+Generate a scoped API key (`dcv_live_...`) from `/dashboard` and automate document workflows over HTTP.
 
-### Option B — CLI Installer
-1. **Run Preflight Check:**
-   ```bash
-   php bin/install --check-only
-   ```
-2. **Execute Non-Interactive Install:**
-   ```bash
-   php bin/install \
-     --app-name="Docvera" \
-     --app-url="http://127.0.0.1:8080" \
-     --business-mode="saas" \
-     --db-driver="sqlite" \
-     --admin-name="System Administrator" \
-     --admin-email="admin@example.com" \
-     --admin-password="ChangeMeImmediately!2026"
-   ```
-3. **Inspect Detected Server Capabilities:**
-   ```bash
-   php bin/capabilities
-   ```
-4. **Run Automated Verification & Fixture Test Suite (35 Checks):**
-   ```bash
-   php bin/test
-   ```
-5. **Configure Scheduled Cleanup & Async Queue Worker (Cron):**
-   ```cron
-   */15 * * * * /usr/bin/php /path/to/docvera/bin/cleanup >> /dev/null 2>&1
-   * * * * * /usr/bin/php /path/to/docvera/bin/worker --limit=25 >> /dev/null 2>&1
-   ```
+### 1. Check Server Health & Capabilities
+```bash
+curl -s http://127.0.0.1:8080/api/v1/health | jq .
+```
+
+### 2. Synchronous Execution (`200 OK`)
+```bash
+curl -X POST "http://127.0.0.1:8080/api/v1/pdf/compress" \
+  -H "Authorization: Bearer dcv_live_YOUR_API_KEY" \
+  -H "Idempotency-Key: job-2026-0001" \
+  -F "files[]=@/path/to/report.pdf" \
+  -F "compression_level=ebook"
+```
+
+### 3. Asynchronous Queue Execution (`202 Accepted`)
+Pass `-F "async=1"` or `-H "Prefer: respond-async"` to enqueue heavy OCR or multi-file batch jobs for `php bin/worker`:
+
+```bash
+curl -X POST "http://127.0.0.1:8080/api/v1/pdf/ocr" \
+  -H "Authorization: Bearer dcv_live_YOUR_API_KEY" \
+  -F "files[]=@/path/to/scanned.pdf" \
+  -F "output_format=pdf" \
+  -F "async=1"
+```
+
+### 4. Poll Status, Download Artifact, or Purge Immediately
+```bash
+# Poll status
+curl -H "Authorization: Bearer dcv_live_YOUR_API_KEY" \
+  "http://127.0.0.1:8080/api/v1/jobs/job_0123456789abcdef0123456789abcdef"
+
+# Download processed document
+curl -L -H "Authorization: Bearer dcv_live_YOUR_API_KEY" \
+  "http://127.0.0.1:8080/api/v1/jobs/job_0123456789abcdef0123456789abcdef/download" \
+  -o output.pdf
+
+# Immediately purge files from server storage
+curl -X DELETE -H "Authorization: Bearer dcv_live_YOUR_API_KEY" \
+  "http://127.0.0.1:8080/api/v1/jobs/job_0123456789abcdef0123456789abcdef"
+```
 
 ---
 
-## Safe Upgrade & Rollback Procedure
+## Security & Privacy Model
 
-1. **Backup Configuration & Database:**
-   ```bash
-   cp .env .env.backup
-   cp -r storage/app/database storage/app/database.backup-$(date +%Y%m%d)
-   ```
-2. **Pre-Upgrade Capability Check:**
-   ```bash
-   php bin/capabilities
-   ```
-3. **Apply Idempotent Schema Migrations:**
-   ```bash
-   php bin/migrate
-   ```
-4. **Run Verification Suite:**
-   ```bash
-   php bin/test
-   ```
-5. **Rollback (if required):** Restore `storage/app/database.backup-YYYYMMDD` and previous release files.
+Docvera is built around hostile-input assumptions:
+- **Zero Shell Interpolation:** External binaries are executed exclusively via `SafeProcessRunner` (`proc_open` with discrete argument arrays, `bypass_shell => true`, sanitized environment variables, 1 MB output buffer caps, and process-group kill on timeout).
+- **Magic-Byte & OpenXML Bomb Inspection:** `UploadValidator` verifies `finfo_file()` MIME types, magic headers (`%PDF-`, image signatures, OLE2 headers), and inspects `.docx`/`.xlsx`/`.pptx` ZIP containers for path traversal (`..`), entry count ceilings (`<= 2,500`), uncompressed size ceilings (`<= 250 MB`), and compression ratio limits (`<= 100:1`).
+- **Immediate Input & Scratch Wipe:** Uploaded source files (`input/`) and scratch files (`work/`) are deleted inside a `finally` block immediately after the tool finishes. Sensitive options (such as PDF passwords) are scrubbed from persisted job records.
+- **Three Deployment Modes:** Run as a **Private Internal Workspace** (`private` — authentication required for all routes, `noindex` enforced), a **Free Public Utility** (`free_ads`), or a **Quota-Governed Multi-User Service** (`saas`).
+
+---
+
+## Interface Previews
+
+| Tool Workbench (`/tools/merge-pdf`) | Developer REST API Reference (`/developers/api`) |
+| :---: | :---: |
+| ![Merge PDF Workbench](docs/screenshots/02-merge-pdf-tool.png) | ![REST API Documentation](docs/screenshots/03-developer-rest-api.png) |
+
+| Administration & Capability Console (`/admin`) | Guided Web Installer (`/install`) |
+| :---: | :---: |
+| ![Admin Console](docs/screenshots/05-admin-console.png) | ![Guided Web Installer](docs/screenshots/06-web-installer.png) |
+
+---
+
+## Documentation & Community
+
+- [**System Architecture (`docs/ARCHITECTURE.md`)**](docs/ARCHITECTURE.md) — Pipeline design, security boundaries, and guide to adding new tools or drivers.
+- [**Operator & API Manual (`docs/DOCUMENTATION.md`)**](docs/DOCUMENTATION.md) — Full configuration, Nginx/Apache/Docker deployment, quotas, and API reference.
+- [**Contributing Guide (`CONTRIBUTING.md`)**](CONTRIBUTING.md) — Development setup, coding standards, and pull request checklist.
+- [**Security Policy (`SECURITY.md`)**](SECURITY.md) — Threat model and vulnerability disclosure policy.
+- [**Public Roadmap (`ROADMAP.md`)**](ROADMAP.md) — Planned milestones (`v2.1+`).
+- [**Third-Party Licenses (`THIRD_PARTY_LICENSES.md`)**](THIRD_PARTY_LICENSES.md) — Host binary and runtime license notes.
+
+---
+
+## License
+
+Docvera is open-source software licensed under the [**Apache License 2.0**](LICENSE).

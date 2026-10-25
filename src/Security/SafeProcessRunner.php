@@ -74,6 +74,7 @@ final class SafeProcessRunner
 
         $stdout = '';
         $stderr = '';
+        $maxOutputBytes = 1048576; // 1 MB cap per stream to prevent memory exhaustion
         $timedOut = false;
         $deadline = $startTime + $timeout;
 
@@ -94,6 +95,10 @@ final class SafeProcessRunner
             $remaining = $deadline - microtime(true);
             if ($remaining <= 0) {
                 $timedOut = true;
+                $pid = (int) ($status['pid'] ?? 0);
+                if ($pid > 0 && function_exists('posix_kill')) {
+                    @posix_kill(-$pid, 9);
+                }
                 @proc_terminate($process, 9);
                 break;
             }
@@ -109,9 +114,13 @@ final class SafeProcessRunner
                         $chunk = fread($stream, 16384);
                         if ($chunk !== false && $chunk !== '') {
                             if ($stream === $pipes[1]) {
-                                $stdout .= $chunk;
+                                if (strlen($stdout) < $maxOutputBytes) {
+                                    $stdout .= substr($chunk, 0, $maxOutputBytes - strlen($stdout));
+                                }
                             } else {
-                                $stderr .= $chunk;
+                                if (strlen($stderr) < $maxOutputBytes) {
+                                    $stderr .= substr($chunk, 0, $maxOutputBytes - strlen($stderr));
+                                }
                             }
                         }
                     }
@@ -121,14 +130,16 @@ final class SafeProcessRunner
             }
         }
 
-        // Drain any remaining buffered bytes
-        $remOut = stream_get_contents($pipes[1]);
-        if ($remOut !== false) {
-            $stdout .= $remOut;
-        }
-        $remErr = stream_get_contents($pipes[2]);
-        if ($remErr !== false) {
-            $stderr .= $remErr;
+        // Drain any remaining buffered bytes within memory cap
+        if (!$timedOut) {
+            $remOut = stream_get_contents($pipes[1], max(0, $maxOutputBytes - strlen($stdout)));
+            if ($remOut !== false && $remOut !== '') {
+                $stdout .= $remOut;
+            }
+            $remErr = stream_get_contents($pipes[2], max(0, $maxOutputBytes - strlen($stderr)));
+            if ($remErr !== false && $remErr !== '') {
+                $stderr .= $remErr;
+            }
         }
 
         fclose($pipes[1]);

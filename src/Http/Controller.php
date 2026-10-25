@@ -36,7 +36,18 @@ final class Controller
         $path = $request->path;
         $method = $request->method;
 
-        // 1. Versioned REST API (/api/v1/*)
+        // 1. Versioned REST API (/api/v1/*) and Health Probe (/healthz)
+        if ($method === 'GET' && $path === '/healthz') {
+            $report = $this->app->capabilities->toMachineReadableReport();
+            $coreReady = (bool) ($report['healthy'] ?? $report['core_ready'] ?? false);
+            Response::json([
+                'ok' => $coreReady,
+                'status' => $coreReady ? 'healthy' : 'degraded',
+                'version' => (string) $this->app->config->get('version', '2.0.0'),
+                'core_ready' => $coreReady,
+            ], $coreReady ? 200 : 503);
+        }
+
         if (str_starts_with($path, '/api/v1/')) {
             $this->apiController->handle($request);
         }

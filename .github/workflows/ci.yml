@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+permissions:
+  contents: read
+
+jobs:
+  quality-and-tests:
+    name: PHP ${{ matrix.php-version }} · Syntax, Capabilities & Integration Suite
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.2", "8.3"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: fileinfo, gd, json, mbstring, pdo, pdo_sqlite, pdo_mysql, zip
+          coverage: none
+
+      - name: Install native document processing toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ghostscript \
+            poppler-utils \
+            qpdf \
+            libreoffice-core \
+            libreoffice-writer \
+            libreoffice-calc \
+            libreoffice-impress \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            fonts-dejavu-core
+
+      - name: Lint all PHP files
+        run: |
+          find src bin public views tests config -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Verify pre-flight installer check
+        run: |
+          php bin/install --check-only
+
+      - name: Verify host capability detection (all 22 tools active)
+        run: |
+          php bin/capabilities
+          php bin/capabilities --json | php -r '
+            $data = json_decode(stream_get_contents(STDIN), true);
+            if (!is_array($data) || empty($data["core_ready"])) {
+              fwrite(STDERR, "Core capabilities not ready\n");
+              exit(1);
+            }
+            foreach (($data["tools"] ?? []) as $id => $tool) {
+              if (empty($tool["available"])) {
+                fwrite(STDERR, "Tool {$id} is not available in CI\n");
+                exit(1);
+              }
+            }
+            echo "All " . count($data["tools"]) . " tools verified ready in CI.\n";
+          '
+
+      - name: Run full integration, output-verification, and security test suite
+        run: |
+          php bin/test
+

@@ -1,6 +1,7 @@
-# Docvera v2.0.0 — Official Customer & Administrator Documentation
+# Docvera v2.0.0 — Operator, Deployment & REST API Documentation
 
-**Product:** Docvera — Self-Hosted PDF & Document Workbench, SaaS Platform & Developer API  
+**Project:** Docvera — Privacy-First, Self-Hosted Document Processing Platform & REST API  
+**License:** Apache-2.0 (`LICENSE`)  
 **Version:** `2.0.0`  
 **Runtime:** PHP `8.2+` (`8.2` / `8.3` / `8.4`)
 
@@ -42,24 +43,23 @@
 Unlike wrapper scripts that secretly upload customer documents to paid third-party cloud APIs, Docvera executes every document transformation **locally on your server** inside isolated `0700` per-job working directories (`storage/app/jobs/job_*`).
 
 ### Key Capabilities
-- **22 Document Tools across 7 Categories:**
-  - **18 Core PDF, Image & Text Tools:** Merge PDF, Split PDF, Extract Pages, Delete Pages, Reorder Pages, Rotate Pages, Images to PDF, PDF to JPG, PDF to PNG, Compress PDF, Password Protect PDF, Unlock PDF, Watermark PDF, Add Page Numbers, Crop PDF, PDF Metadata Viewer/Editor, Grayscale PDF, Flatten PDF, PDF to Text, and Text to PDF.
-  - **4 Optional Capability-Gated Tools:** Word to PDF, Excel to PDF, PowerPoint to PDF (enabled automatically when `libreoffice` is installed), and OCR Scanned PDF (enabled automatically when `tesseract` is installed).
-- **3 Commercial Operating Modes:** Switchable at runtime via `/admin/overview` between **Freemium / Paid SaaS (`saas`)**, **Free / Ad-Supported Utility (`free_ads`)**, and **Private Internal Workspace (`private`)**.
+- **22 Document Tools across 5 Functional Categories:**
+  - **18 Core PDF, Image & Text Tools:** Merge PDF (`merge-pdf`), Split PDF (`split-pdf`), Extract Pages (`extract-pages`), Delete Pages (`delete-pages`), Reorder Pages (`reorder-pages`), Rotate Pages (`rotate-pages`), Images to PDF (`images-to-pdf`), PDF to JPG / PNG (`pdf-to-images`), Compress PDF (`compress-pdf`), Protect PDF (`protect-pdf`), Unlock PDF (`unlock-pdf`), Watermark PDF (`watermark-pdf`), Crop PDF (`crop-pdf`), Add Page Numbers (`page-numbers`), Edit PDF Metadata (`pdf-metadata`), Grayscale PDF (`grayscale-pdf`), Flatten PDF (`flatten-pdf`), and Text / Markdown to PDF (`text-to-pdf`).
+  - **4 Optional Capability-Gated Tools:** Word to PDF (`word-to-pdf`), Excel to PDF (`excel-to-pdf`), PowerPoint to PDF (`powerpoint-to-pdf` — enabled automatically when `libreoffice` is installed), and OCR PDF (`ocr-pdf` — enabled automatically when `tesseract` is installed).
+- **3 Operating Modes:** Switchable at runtime via `/admin/overview` between **Freemium / Paid SaaS (`saas`)**, **Free / Ad-Supported Utility (`free_ads`)**, and **Private Internal Workspace (`private`)**.
 - **3 Persistence Drivers:** Works out-of-the-box with the built-in concurrency-safe `file` JSON store (zero database daemon required), `sqlite` (PDO SQLite WAL mode), or `mysql` (PDO MySQL/MariaDB/PostgreSQL).
 
 ---
 
 ## 2. Installation
 
-You can install Docvera using either the **Guided Web Installer (`/install`)** or the **CLI Installer (`php bin/install`)**.
+You can install Docvera using Docker Compose, git clone, or a release archive (`docvera-v2.0.0.zip`), and configure it via either the **Guided Web Installer (`/install`)** or the **CLI Installer (`php bin/install`)**.
 
-### Step 1: Extract the Release Package
-Upload and extract `docvera-v2.0.0-codester.zip` onto your server (for example `/var/www/docvera`):
+### Step 1: Clone or Extract the Release Package
+Clone the repository or extract `docvera-v2.0.0.zip` onto your server (for example `/var/www/docvera`):
 
 ```bash
-mkdir -p /var/www/docvera
-unzip docvera-v2.0.0-codester.zip -d /var/www/docvera
+git clone https://github.com/hoanle0126/Docvera.git /var/www/docvera
 cd /var/www/docvera
 chmod -R 0700 storage
 chown -R www-data:www-data storage
@@ -372,10 +372,13 @@ Docvera exposes a versioned REST API under `/api/v1/*`. Live interactive documen
 ### Core Endpoints
 | Method & Endpoint | Scope Required | Description |
 | :--- | :--- | :--- |
+| `GET /healthz` | *Public* | Lightweight JSON health check (`200 OK` or `503 Service Unavailable`). |
 | `GET /api/v1/health` | *Public* | Returns truthful capability readiness (`ok: true` or `503` if required core checks fail). |
+| `GET /api/v1/capabilities` | *Public* | Returns complete host capability and 22-tool readiness matrix. |
 | `GET /api/v1/openapi.json` | *Public* | OpenAPI 3.1.0 specification generated dynamically from `ToolRegistry`. |
-| `GET /api/v1/tools` | `jobs:read` | Lists all enabled API-eligible tools, active drivers, and option schemas. |
-| `GET /api/v1/account/usage` | `jobs:read` | Returns current daily/monthly operation and API request usage counters and plan limits. |
+| `GET /api/v1/tools` | *Public* | Lists all enabled API-eligible tools, active drivers, and option schemas. |
+| `GET /api/v1/usage` (or `/api/v1/account/usage`) | *Authenticated* | Returns current daily/monthly operation and API request usage counters and plan limits. |
+| `GET /api/v1/jobs` | `jobs:read` | Lists recent processing jobs for the authenticated account (`?limit=20`). |
 | `POST /api/v1/tools/{slug}` | `tools:execute` | Executes any enabled tool by slug (`multipart/form-data` with `files[]` and tool options). |
 | `POST /api/v1/pdf/merge` | `tools:execute` | Semantic alias for `merge-pdf`. |
 | `POST /api/v1/pdf/split` | `tools:execute` | Semantic alias for `split-pdf`. |
@@ -463,10 +466,10 @@ Docvera uses idempotent, non-destructive schema and file-store migrations (`data
 cp .env .env.backup-$(date +%Y%m%d)
 cp -r storage/app/database storage/app/database.backup-$(date +%Y%m%d)
 
-# 2. Extract the new release files over the application directory
+# 2. Pull or extract the new release files over the application directory
 #    (Note: .env and storage/app/database/* are never included in the release ZIP,
 #     so your configuration and data are never overwritten)
-unzip -o docvera-v2.0.0-codester.zip -d /var/www/docvera
+unzip -o docvera-v2.0.0.zip -d /var/www/docvera
 
 # 3. Verify host capabilities
 php bin/capabilities

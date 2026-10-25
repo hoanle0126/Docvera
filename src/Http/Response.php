@@ -14,6 +14,8 @@ final class Response
             header('X-Content-Type-Options: nosniff');
             header('X-Frame-Options: SAMEORIGIN');
             header('Referrer-Policy: strict-origin-when-cross-origin');
+            header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+            header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'");
         }
         echo $content;
         exit;

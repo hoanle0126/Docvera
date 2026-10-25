@@ -4,15 +4,15 @@
 declare(strict_types=1);
 
 /**
- * Docvera — Commercial Release Packaging Script
+ * Docvera — Open-Source Release Packaging Script
  *
- * Builds `dist/docvera-v2.0.0-codester.zip` and verifies zero developer secrets,
+ * Builds `dist/docvera-v2.0.0.zip` and verifies zero developer secrets,
  * local databases, runtime logs, or VCS directories are included.
  */
 
 $baseDir = dirname(__DIR__);
 $distDir = $baseDir . '/dist';
-$zipPath = $distDir . '/docvera-v2.0.0-codester.zip';
+$zipPath = $distDir . '/docvera-v2.0.0.zip';
 
 if (!is_dir($distDir)) {
     mkdir($distDir, 0755, true);
@@ -103,12 +103,22 @@ if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
 }
 
 $includedRootFiles = [
+    '.dockerignore',
     '.env.example',
     '.htaccess',
+    'AGENTS.md',
     'CHANGELOG.md',
+    'CLAUDE.md',
+    'CODE_OF_CONDUCT.md',
+    'CONTRIBUTING.md',
+    'Dockerfile',
+    'LICENSE',
     'README.md',
+    'ROADMAP.md',
+    'SECURITY.md',
     'THIRD_PARTY_LICENSES.md',
     'composer.json',
+    'docker-compose.yml',
 ];
 
 foreach ($includedRootFiles as $relFile) {
@@ -177,7 +187,6 @@ $verifyZip->open($zipPath);
 $forbiddenPatterns = [
     '#^docvera/\.git/#',
     '#^docvera/\.env$#',
-    '#^docvera/AGENTS\.md$#',
     '#^docvera/firebase-debug\.log$#',
     '#\.installed\.lock$#',
     '#installed\.lock$#',

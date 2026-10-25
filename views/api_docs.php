@@ -49,11 +49,15 @@ declare(strict_types=1);
         </div>
 
         <div class="tool-primary-pane" style="margin-top:1rem;">
-            <h3 class="subsection-heading">Job endpoints</h3>
+            <h3 class="subsection-heading">Discovery &amp; Job endpoints</h3>
             <ul style="margin:0;padding-left:1.25rem;font-family:var(--font-mono);font-size:0.825rem;line-height:1.7;">
-                <li><code>GET /api/v1/tools</code> — List all API-capable tools and live server driver availability (Scope: <code>tools:read</code>)</li>
+                <li><code>GET /api/v1/health</code> — Service health and core runtime readiness probe (Public)</li>
+                <li><code>GET /api/v1/capabilities</code> — Full capability report and active tool drivers (Public)</li>
+                <li><code>GET /api/v1/tools</code> — List all API-capable tools and live server driver availability (Public)</li>
+                <li><code>GET /api/v1/usage</code> — Inspect daily/monthly quota and API request telemetry (Authenticated)</li>
+                <li><code>GET /api/v1/jobs</code> — List recent jobs for the authenticated user (Scope: <code>jobs:read</code>)</li>
                 <li><code>GET /api/v1/jobs/{job_id}</code> — Poll synchronous or asynchronous job status and output telemetry (Scope: <code>jobs:read</code>)</li>
-                <li><code>GET /api/v1/jobs/{job_id}/download</code> — Stream the verified output artifact while within retention window (Scope: <code>jobs:read</code>)</li>
+                <li><code>GET /api/v1/jobs/{job_id}/download</code> — Stream the verified output artifact while within retention window (Scope: <code>jobs:download</code>)</li>
                 <li><code>DELETE /api/v1/jobs/{job_id}</code> — Immediately wipe job working and output files from disk (Scope: <code>jobs:delete</code>)</li>
             </ul>
         </div>

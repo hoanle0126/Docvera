@@ -1,0 +1,15 @@
+.git
+.github
+.env
+dist
+node_modules
+storage/app/jobs/*
+!storage/app/jobs/.gitkeep
+storage/app/staged/*
+!storage/app/staged/.gitkeep
+storage/app/database/*
+!storage/app/database/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+firebase-debug.log
+

@@ -1,45 +1,28 @@
 # Changelog
 
-All notable changes to **Docvera — Self-Hosted PDF & Document Workbench** are documented in this file.
+All notable changes to **Docvera** are documented in this file.
 
 ---
 
-## [2.0.0] — Commercial Marketplace Release (2026-10-24)
+## `v2.0.0` (2026-10-25) — Open-Source Hardening, REST API & Multi-Driver Platform Release
 
-### Added
-- **Guided Web Installer (`/install`) & CLI Installer (`php bin/install`):**
-  - Pre-flight readiness inspector that strictly separates **REQUIRED** host prerequisites (PHP 8.2+, `fileinfo`, `openssl`, `zip`, `mbstring`, writable `0700` storage directories) from **OPTIONAL CAPABILITIES** (`ghostscript`, `poppler`, `qpdf`, `libreoffice`, `tesseract`, `ext-gd`).
-  - Live database connection tester (`file`, `sqlite`, `mysql`/`pgsql`) with zero credential leakage in error output.
-  - Automatic 256-bit CSPRNG `APP_SECRET` generation, `.env` creation (`0600`), database migration execution, and initial Administrator provisioning.
-  - Permanent post-install lockout (`storage/app/installed.lock` + `APP_INSTALLED=true`) returning HTTP `403` on any subsequent `/install` request.
-- **Multi-Deployment Commercial Operating Modes:**
-  - Switchable at runtime in `/admin/overview` between **Freemium / Paid SaaS (`saas`)**, **Free / Ad-Supported Utility (`free_ads`)**, and **Private Internal Workspace (`private`)**.
-- **Configurable Plans & Authoritative Entitlement Engine:**
-  - Seeded `guest`, `free`, `pro`, and `business` tiers with per-day/per-month operation quotas, file-size limits, page-count caps, batch limits, OCR permissions, concurrency slots, API rate limits, retention windows, and ad visibility flags.
-- **Subscription Billing & Verified Webhook Engine:**
-  - Stripe Checkout & PayPal Subscriptions integration with `Stripe-Signature` HMAC-SHA256 timestamp verification, PayPal webhook signature verification, and idempotent replay protection (`webhook_events`).
-- **Versioned Developer REST API (`/api/v1/*`):**
-  - Bearer and `X-Api-Key` authentication with hashed `dcv_live_` secrets, key rotation/revocation, scoped permissions (`tools:execute`, `jobs:read`, `jobs:download`, `jobs:delete`), `Idempotency-Key` replay cache, synchronous execution, and asynchronous queued execution (`?async=1`) via `php bin/worker`.
-  - Dynamic `/developers/api` documentation and `/api/v1/openapi.json` OpenAPI 3.1.0 specification generated directly from `ToolRegistry`.
-- **16-Section Administration Console (`/admin/*`):**
-  - Overview & Business Mode, Tool Management, Users & Roles, Plans & Quotas, Subscriptions, Payments & Webhooks, Usage Buckets, Processing Jobs, Truthful System Health, Storage & Cleanup, API Usage & Keys, SEO & Sitemap, Branding & Ad Slots, CMS Pages (`/p/privacy`, `/p/terms`, `/p/security`), Security & Billing Keys, and Update Center.
-- **Clean-Release Packaging & Verification Tooling:**
-  - Added `bin/package-release` to build a clean customer distribution archive (`dist/docvera-v2.0.0-codester.zip`) free of `.git`, secrets, temporary uploads, or dev artifacts.
-  - Expanded automated verification suite (`php bin/test`) to 35 end-to-end assertions including v1.0.0-to-v2.0.0 upgrade verification.
+### Security & Processing Hardening
+- **OpenXML & OLE2 Upload Verification (`src/Security/UploadValidator.php`):** Added deep ZIP container inspection for `.docx`, `.xlsx`, and `.pptx` uploads (enforcing entry count `<= 2,500`, uncompressed size `<= 250 MB`, compression ratio `<= 100:1` above 10 MB, `[Content_Types].xml` structure checks, and path-traversal rejection) plus OLE2 magic-byte verification for legacy `.doc`/`.xls`/`.ppt` files.
+- **Subprocess Output Caps & Process-Group Termination (`src/Security/SafeProcessRunner.php`):** Capped captured `stdout` and `stderr` buffers at 1 MB per subprocess and added process-group `SIGKILL` (`posix_kill(-$pid, 9)`) on timeout.
+- **QPDF Argument & Encryption Hardening (`src/Drivers/QpdfDriver.php`):** Validated `rotate-pages` page range expressions via `PdfInspector::parsePageRangeSpec()`, enforced encrypted PDF rejection across all non-unlock operations even when `pdfinfo` reports `page_count > 0`, and added `--` option terminators before password arguments.
+- **Automatic Multi-Driver Fallback (`src/Tools/ToolExecutionService.php`, `src/Drivers/PopplerDriver.php`, `src/Drivers/TesseractOcrDriver.php`):** Tools with fallback chains (`qpdf → poppler → ghostscript`) now automatically fall back to the next available driver if a primary binary fails at runtime; `TesseractOcrDriver` now supports Ghostscript PDF rasterization when `pdftoppm` is absent.
+- **Sensitive Parameter Scrubbing:** Asynchronous job records now scrub `request_params` and staging metadata upon completion or failure, and `/api/v1/jobs/*` responses strip internal staging keys (`queued_options`, `staged_inputs`).
+- **HTTP Security Headers & Dev Server Traversal Guard (`src/Http/Response.php`, `public/index.php`):** Added `Content-Security-Policy` and `Permissions-Policy` headers on HTML responses and hardened PHP built-in server static file resolution with `realpath()` boundary checks.
 
-### Security & Reliability Fixes
-- Added IP + account brute-force lockout (`429 Too Many Requests`) on `/login` and `/register` plus CSRF token rotation on session privilege transitions.
-- Fixed asynchronous queue concurrency slot accounting so `active_concurrent_jobs` remains reserved while a job is `queued` and is released deterministically when `bin/worker` completes or when a queued job is deleted/purged.
-- Unified `GhostscriptDriver::splitPdf()` to support `split_mode=every_n` (`every_n_pages`) on hosts without `pdfseparate`.
-- Added encrypted PDF pre-checks to `QpdfDriver::mergePdf()` and `QpdfDriver::rotatePages()` for consistent `422` validation messages.
-- Added fallback CSPRNG secret persistence (`storage/app/database/.app_secret`) when `.env` `APP_SECRET` is left at its placeholder value.
+### REST API & Developer Experience
+- **Health & Job Listing Endpoints:** Added `GET /healthz`, `GET /api/v1/health`, `GET /api/v1/jobs`, and `/api/v1/account/usage` alias, plus `Prefer: respond-async` header support.
+- **Container & CI Workflows:** Added production-ready [`Dockerfile`](Dockerfile), [`docker-compose.yml`](docker-compose.yml), and GitHub Actions CI matrix ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) testing all 22 tools across PHP 8.2 and 8.3.
+- **Platform Capabilities:** Guided Web Installer (`/install`), CLI Installer (`bin/install`), Multi-Deployment Modes (`saas`, `free_ads`, `private`), Configurable Plans & Quota Engine, Optional Stripe & PayPal Billing Webhooks, Scoped API Keys (`dcv_live_...`), Async Queue Worker (`bin/worker`), and 16-Section Admin Console (`/admin/*`).
 
 ---
 
-## [1.0.0] — Initial Workbench Engine Release (2026-01-15)
+## `v1.0.0` (2026-01-15) — Initial Workbench Engine
 
-### Added
-- 22-tool PDF & Document Workbench directory with Homepage Smart File Router (`/router/inspect`).
-- 18 core PDF, image, and text tools powered by `GhostscriptDriver`, `PopplerDriver`, `QpdfDriver`, and `NativePhpPdfDriver`.
-- 4 capability-gated Office & OCR tools (`word-to-pdf`, `excel-to-pdf`, `powerpoint-to-pdf`, `ocr-pdf`) powered by `LibreOfficeDriver` and `TesseractOcrDriver`.
-- Strict magic-byte upload validator (`UploadValidator`), zero-shell subprocess runner (`SafeProcessRunner`), isolated `0700` per-job workspaces (`TempStorageManager`), and scheduled TTL garbage collection (`CleanupService`).
+- **22 Self-Hosted PDF & Document Tools** across Organize, Convert to PDF, Convert from PDF, Optimize & Stamp, and Security & Metadata categories.
+- **Homepage Smart File Router (`/router/inspect`)** with magic-byte MIME detection and compatible tool recommendations.
+- **Isolated `0700` Per-Job Ephemeral Workspaces (`storage/app/jobs/job_*`)** with immediate `input/` + `work/` purge and TTL output cleanup (`bin/cleanup`).

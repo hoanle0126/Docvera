@@ -1,11 +1,15 @@
-/vendor/
+/vendor/*
+!/vendor/autoload.php
 /.env
+/dist/*.zip
+/storage/app/installed.lock
 /storage/app/jobs/*
 !/storage/app/jobs/.gitkeep
 /storage/app/staged/*
 !/storage/app/staged/.gitkeep
 /storage/app/database/*.json
-/storage/app/database/*.sqlite
+/storage/app/database/*.sqlite*
+/storage/app/database/*.lock
 /storage/app/database/.app_secret
 !/storage/app/database/.gitkeep
 /storage/logs/*.log

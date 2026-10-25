@@ -7,9 +7,41 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 use Docvera\Core\Application;
 
-$app = new Application();
-$count = $app->executor->processAllQueuedJobs(50);
+$options = getopt('', [
+    'help',
+    'once',
+    'daemon',
+    'limit::',
+    'sleep::',
+]);
 
+if (isset($options['help'])) {
+    echo "Usage: php bin/worker [--once|--daemon] [--limit=25] [--sleep=2]\n";
+    exit(0);
+}
+
+$limit = max(1, min(500, (int) ($options['limit'] ?? 25)));
+$sleepSeconds = max(1, min(60, (int) ($options['sleep'] ?? 2)));
+$daemon = isset($options['daemon']) && !isset($options['once']);
+
+$app = new Application();
+
+if ($daemon) {
+    echo sprintf("Docvera Queue Worker Daemon started (limit=%d, sleep=%ds)...\n", $limit, $sleepSeconds);
+    while (true) {
+        $count = $app->executor->processAllQueuedJobs($limit);
+        if ($count > 0) {
+            echo sprintf(
+                "[%s] Processed %d queued job(s).\n",
+                gmdate('Y-m-d\TH:i:s\Z'),
+                $count
+            );
+        }
+        sleep($sleepSeconds);
+    }
+}
+
+$count = $app->executor->processAllQueuedJobs($limit);
 echo sprintf("Docvera Queue Worker: processed %d queued job(s) at %s.\n", $count, gmdate('Y-m-d\TH:i:s\Z'));
 exit(0);
 
